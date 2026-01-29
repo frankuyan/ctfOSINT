@@ -236,6 +236,23 @@ docker-compose logs --tail 0
 docker-compose down -v
 ```
 
+### Docker Credential Helper Error (Colima/macOS)
+
+**Error:** `error getting credentials - err: exec: "docker-credential-osxkeychain": executable file not found in $PATH`
+
+**Cause:** Docker config references osxkeychain credential helper, but it's not available (common with Colima)
+
+**Solution:**
+```bash
+# Edit ~/.docker/config.json and change:
+# "credsStore": "osxkeychain"
+# to:
+# "credsStore": ""
+
+# Or run:
+sed -i '' 's/"credsStore": "osxkeychain"/"credsStore": ""/' ~/.docker/config.json
+```
+
 ---
 
 ## ML Component Issues
