@@ -1,0 +1,151 @@
+# SherlockML Default Docker Configuration
+# Copy this to config.yaml and customize for your environment
+
+# =============================================================================
+# Platform Configuration
+# =============================================================================
+platforms:
+  github:
+    enabled: true
+    priority_weight: 0.92
+    auth_token: ${GITHUB_TOKEN}
+    search_commits: true
+    rate_limit: 30.0
+
+  twitter:
+    enabled: true
+    priority_weight: 0.78
+    auth_token: ${TWITTER_BEARER_TOKEN}
+    rate_limit: 5.0
+
+  linkedin:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 2.0
+
+  reddit:
+    enabled: true
+    priority_weight: 0.70
+    rate_limit: 10.0
+
+  mastodon:
+    enabled: true
+    priority_weight: 0.55
+    instance_url: https://mastodon.social
+    rate_limit: 10.0
+
+  hackernews:
+    enabled: true
+    priority_weight: 0.80
+    rate_limit: 10.0
+
+  gitlab:
+    enabled: true
+    priority_weight: 0.85
+    rate_limit: 20.0
+
+  keybase:
+    enabled: true
+    priority_weight: 0.88
+    rate_limit: 10.0
+
+  pastebin:
+    enabled: true
+    priority_weight: 0.85
+    rate_limit: 5.0
+
+  instagram:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 3.0
+
+# =============================================================================
+# Machine Learning Configuration
+# =============================================================================
+ml:
+  # RAG settings
+  rag_threshold: 0.75
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  vectorstore_type: chromadb  # chromadb or qdrant
+  vectorstore_path: /data/vectorstore
+  chromadb_host: chromadb
+  chromadb_port: 8000
+  
+  # RL settings
+  rl_learning_rate: 0.1
+  rl_weights_db: /data/rl_weights.db
+  rl_exploration_rate: 0.15
+  
+  # NER settings
+  ner_model: en_core_web_sm
+  custom_patterns_file: /config/ner_patterns.yaml
+
+# =============================================================================
+# Search Configuration
+# =============================================================================
+search:
+  max_concurrent: 10
+  request_timeout: 15
+  default_rate_limit: 5.0
+  retry_attempts: 3
+  retry_backoff: 1.5
+  
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    - "SherlockML/1.0 (OSINT Research Tool)"
+
+# =============================================================================
+# Proxy Configuration
+# =============================================================================
+proxy:
+  enabled: ${TOR_ENABLED:-false}
+  type: socks5
+  host: tor
+  port: 9050
+  
+  # Rotate identity settings
+  rotate_enabled: true
+  rotate_interval: 300  # seconds
+  control_port: 9051
+
+# =============================================================================
+# Output Configuration
+# =============================================================================
+output:
+  default_format: json
+  pretty_print: true
+  results_dir: /app/results
+  flags_file: /data/flags.json
+  
+  # Graphviz settings
+  graph_format: svg
+  graph_rankdir: LR
+
+# =============================================================================
+# CTF-Specific Configuration
+# =============================================================================
+ctf:
+  auto_detect_format: true
+  fast_fail: false
+  
+  flag_patterns:
+    - '(flag|ctf|glug|hxp|picoCTF|HTB)\{[^}]+\}'
+    - 'FLAG\{[^}]+\}'
+    - 'CTF_[A-Za-z0-9_]+_[A-Za-z0-9]+'
+  
+  priority_platforms:
+    - pastebin
+    - github
+    - keybase
+    - hackernews
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: /data/sherlockml.log
+  rotate_size: 10485760  # 10MB
+  backup_count: 5

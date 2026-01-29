@@ -1,0 +1,8 @@
+---
+# SherlockML Ansible Role - Handlers
+
+- name: Restart SherlockML
+  docker_container:
+    name: "{{ sherlockml_container_name }}"
+    state: started
+    restart: yes

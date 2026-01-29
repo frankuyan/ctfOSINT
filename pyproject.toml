@@ -1,0 +1,100 @@
+[project]
+name = "sherlockml"
+version = "1.0.0"
+description = "Production-ready OSINT framework with ML, RAG, and RL for CTF competitions"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "SherlockML Team"}
+]
+keywords = ["osint", "ctf", "security", "machine-learning", "rag"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+
+dependencies = [
+    # Core async and HTTP
+    "aiohttp>=3.9.0",
+    "aiohttp-socks>=0.8.0",
+    "aiofiles>=23.0.0",
+    
+    # CLI and terminal UI
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    
+    # Configuration
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    
+    # ML/AI - Vector storage and embeddings
+    "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+    
+    # NLP - NER extraction
+    "spacy>=3.7.0",
+    
+    # Data processing
+    "networkx>=3.0",
+    "jellyfish>=1.0.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    
+    # Output formats
+    "graphviz>=0.20.0",
+    "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "responses>=0.23.0",
+    "aioresponses>=0.7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+]
+
+torch = [
+    "torch>=2.0.0",
+]
+
+[project.scripts]
+sherlockml = "sherlockml.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sherlockml"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true

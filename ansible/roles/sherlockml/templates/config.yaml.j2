@@ -1,0 +1,78 @@
+# SherlockML Configuration
+# Managed by Ansible - DO NOT EDIT MANUALLY
+
+platforms:
+  github:
+    enabled: true
+    priority_weight: 0.92
+    auth_token: ${GITHUB_TOKEN}
+    search_commits: true
+  twitter:
+    enabled: true
+    priority_weight: 0.78
+{% if twitter_bearer_token %}
+    auth_token: ${TWITTER_BEARER_TOKEN}
+{% endif %}
+  linkedin:
+    enabled: true
+    priority_weight: 0.65
+  reddit:
+    enabled: true
+    priority_weight: 0.70
+  mastodon:
+    enabled: true
+    priority_weight: 0.55
+  hackernews:
+    enabled: true
+    priority_weight: 0.80
+  gitlab:
+    enabled: true
+    priority_weight: 0.85
+  keybase:
+    enabled: true
+    priority_weight: 0.88
+  pastebin:
+    enabled: true
+    priority_weight: 0.85
+  instagram:
+    enabled: true
+    priority_weight: 0.60
+
+ml:
+  rag_threshold: 0.75
+  rl_learning_rate: 0.1
+  ner_model_path: /data/ner_model
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  vectorstore_path: /data/vectorstore
+  rl_weights_db: /data/rl_weights.db
+
+search:
+  max_concurrent: 10
+  request_timeout: 15
+  default_rate_limit: 5.0
+  retry_attempts: 3
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    - "SherlockML/1.0 (OSINT Research Tool)"
+
+proxy:
+{% if tor_enabled %}
+  enabled: true
+  type: socks5
+  host: 127.0.0.1
+  port: {{ tor_socks_port }}
+{% else %}
+  enabled: false
+{% endif %}
+
+output:
+  default_format: json
+  pretty_print: true
+  flags_file: /data/flags.json
+
+ctf:
+  auto_detect_format: true
+  fast_fail: false
+  flag_patterns:
+    - '(flag|ctf|glug|hxp|picoCTF|HTB)\{[^}]+\}'
+    - 'FLAG\{[^}]+\}'

@@ -1,0 +1,177 @@
+# SherlockML Docker Compose Configuration
+# 
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose --profile qdrant up -d  # Include Qdrant
+#   docker-compose exec sherlockml sherlockml search <user>
+#
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # SherlockML Main Application
+  # ==========================================================================
+  sherlockml:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sherlockml:latest
+    container_name: sherlockml
+    restart: unless-stopped
+    
+    # Environment variables
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN:-}
+      - SHERLOCKML_DATA=/data
+      - SHERLOCKML_CONFIG=/config/config.yaml
+      - TOR_ENABLED=${TOR_ENABLED:-false}
+    
+    # Persistent volumes
+    volumes:
+      - sherlockml_data:/data
+      - ./docker/config.default.yaml:/config/config.yaml:ro
+      - ./results:/app/results
+    
+    # Network capabilities for Tor
+    cap_add:
+      - NET_ADMIN
+    
+    networks:
+      - sherlockml_net
+    
+    # Keep container running for exec commands
+    entrypoint: ["tail", "-f", "/dev/null"]
+    
+    depends_on:
+      - tor
+
+  # ==========================================================================
+  # Tor Proxy Service (Optional but recommended)
+  # ==========================================================================
+  tor:
+    image: dperson/torproxy:latest
+    container_name: sherlockml_tor
+    restart: unless-stopped
+    
+    environment:
+      - LOCATION=US
+    
+    ports:
+      - "9050:9050"   # SOCKS5 proxy
+      - "9051:9051"   # Control port
+    
+    networks:
+      - sherlockml_net
+    
+    healthcheck:
+      test: ["CMD", "curl", "-sS", "--socks5", "localhost:9050", "https://check.torproject.org/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # ChromaDB Vector Database
+  # ==========================================================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: sherlockml_chromadb
+    restart: unless-stopped
+    
+    ports:
+      - "8000:8000"
+    
+    volumes:
+      - chromadb_data:/chroma/chroma
+    
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    
+    networks:
+      - sherlockml_net
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # Qdrant Vector Database (Alternative to ChromaDB)
+  # ==========================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: sherlockml_qdrant
+    restart: unless-stopped
+    
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    
+    volumes:
+      - qdrant_data:/qdrant/storage
+    
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    
+    networks:
+      - sherlockml_net
+    
+    profiles:
+      - qdrant
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/readiness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # Redis Cache (Optional - for rate limiting coordination)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: sherlockml_redis
+    restart: unless-stopped
+    
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - redis_data:/data
+    
+    networks:
+      - sherlockml_net
+    
+    profiles:
+      - cache
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# =============================================================================
+# Named Volumes
+# =============================================================================
+volumes:
+  sherlockml_data:
+    driver: local
+  chromadb_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  sherlockml_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

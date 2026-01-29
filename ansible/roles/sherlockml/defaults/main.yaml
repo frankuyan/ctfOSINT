@@ -1,0 +1,25 @@
+---
+# SherlockML Ansible Role - Default Variables
+
+# Container settings
+sherlockml_image: "sherlockml:latest"
+sherlockml_container_name: "sherlockml"
+sherlockml_data_dir: "/opt/sherlockml/data"
+
+# API tokens (should be defined in vault)
+github_token: ""
+twitter_bearer_token: ""
+
+# Tor proxy settings
+tor_enabled: true
+tor_socks_port: 9050
+
+# RL training schedule
+rl_training_enabled: true
+rl_training_hour: 2
+rl_training_minute: 0
+rl_training_dataset: "/data/ctf_archive.json"
+
+# Resource limits
+memory_limit: "2g"
+cpu_limit: "1.0"

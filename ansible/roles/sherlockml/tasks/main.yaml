@@ -1,0 +1,74 @@
+---
+# SherlockML Ansible Role - Main Tasks
+
+- name: Create SherlockML directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ sherlockml_data_dir }}"
+    - "{{ ansible_env.HOME }}/.sherlockml"
+    - "{{ ansible_env.HOME }}/.sherlockml/plugins"
+
+- name: Template SherlockML config
+  template:
+    src: config.yaml.j2
+    dest: "{{ ansible_env.HOME }}/.sherlockml/config.yaml"
+    mode: '0600'
+  notify: Restart SherlockML
+
+- name: Pull SherlockML Docker image
+  docker_image:
+    name: "{{ sherlockml_image }}"
+    source: pull
+  register: image_pull
+  ignore_errors: yes
+
+- name: Build SherlockML image if not available
+  docker_image:
+    name: "{{ sherlockml_image }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../.."
+  when: image_pull is failed
+
+- name: Deploy SherlockML container
+  docker_container:
+    name: "{{ sherlockml_container_name }}"
+    image: "{{ sherlockml_image }}"
+    state: started
+    restart_policy: unless-stopped
+    capabilities:
+      - NET_ADMIN
+    volumes:
+      - "{{ sherlockml_data_dir }}:/data"
+      - "{{ ansible_env.HOME }}/.sherlockml:/root/.sherlockml:ro"
+    env:
+      GITHUB_TOKEN: "{{ github_token }}"
+      TWITTER_BEARER_TOKEN: "{{ twitter_bearer_token }}"
+      SHERLOCKML_DATA: "/data"
+    memory: "{{ memory_limit }}"
+    cpus: "{{ cpu_limit }}"
+    # Keep container running for exec commands
+    command: ["tail", "-f", "/dev/null"]
+
+- name: Setup RL training cron job
+  cron:
+    name: "SherlockML RL Training"
+    hour: "{{ rl_training_hour }}"
+    minute: "{{ rl_training_minute }}"
+    job: >
+      docker exec {{ sherlockml_container_name }} 
+      sherlockml rl-train --dataset {{ rl_training_dataset }} --epochs 50
+      >> /var/log/sherlockml-training.log 2>&1
+    state: "{{ 'present' if rl_training_enabled else 'absent' }}"
+
+- name: Create sherlockml wrapper script
+  copy:
+    dest: /usr/local/bin/sherlockml
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      # SherlockML wrapper - runs commands in Docker container
+      docker exec -it {{ sherlockml_container_name }} sherlockml "$@"

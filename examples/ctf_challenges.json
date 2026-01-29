@@ -1,0 +1,45 @@
+[
+    {
+        "challenge": "osint_001",
+        "platforms": {
+            "github": true,
+            "twitter": false,
+            "reddit": false,
+            "pastebin": true,
+            "keybase": false,
+            "hackernews": false
+        },
+        "context": {
+            "difficulty": "easy",
+            "category": "osint"
+        }
+    },
+    {
+        "challenge": "osint_002",
+        "platforms": {
+            "github": true,
+            "twitter": true,
+            "reddit": false,
+            "linkedin": false,
+            "mastodon": false
+        },
+        "context": {
+            "difficulty": "medium",
+            "category": "osint"
+        }
+    },
+    {
+        "challenge": "osint_003",
+        "platforms": {
+            "github": false,
+            "twitter": false,
+            "reddit": true,
+            "hackernews": true,
+            "pastebin": false
+        },
+        "context": {
+            "difficulty": "hard",
+            "category": "osint"
+        }
+    }
+]
