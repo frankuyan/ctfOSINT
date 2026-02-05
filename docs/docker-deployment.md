@@ -55,6 +55,7 @@ services:
   sherlockml:
     build: .
     image: sherlockml:latest
+    entrypoint: ["tail", "-f", "/dev/null"]
     volumes:
       - sherlockml_data:/data
       - ./docker/config.default.yaml:/config/config.yaml:ro
@@ -259,16 +260,9 @@ services:
 
 ## Multi-Host Setup
 
-### Separate Vector DB
+### Separate Vector DB (Coming Soon)
 
-```yaml
-# docker-compose.override.yaml
-services:
-  sherlockml:
-    environment:
-      - CHROMADB_HOST=vectordb.internal
-      - CHROMADB_PORT=8000
-```
+*Support for remote ChromaDB connections is currently in development.*
 
 ### External Tor
 
@@ -278,6 +272,14 @@ services:
     environment:
       - TOR_HOST=tor.internal
       - TOR_PORT=9050
+```
+
+**Note:** You must also update your `config.yaml` to use these variables:
+
+```yaml
+proxy:
+  host: ${TOR_HOST}
+  port: ${TOR_PORT}
 ```
 
 ---

@@ -156,7 +156,13 @@ def load_config(config_path: Path | str | None = None) -> Config:
         Loaded Config object
     """
     if config_path is None:
-        config_path = Path.home() / '.sherlockml' / 'config.yaml'
+        # Check environment variable first
+        env_config = os.environ.get('SHERLOCKML_CONFIG')
+        if env_config:
+            path = Path(env_config)
+            config_path = path / 'config.yaml' if path.is_dir() else path
+        else:
+            config_path = Path.home() / '.sherlockml' / 'config.yaml'
     else:
         config_path = Path(config_path)
     
