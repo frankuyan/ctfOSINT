@@ -141,7 +141,6 @@ class Orchestrator:
         return aiohttp.ClientSession(
             connector=connector,
             timeout=timeout,
-            headers={"User-Agent": self._get_user_agent()},
         )
     
     async def _rate_limit(self, platform_name: str, rate_limit: float) -> None:
@@ -181,40 +180,58 @@ class Orchestrator:
             SearchResult for this check
         """
         async with self.semaphore:
-            # Apply rate limiting
             platform_config = self.config.get_platform(platform.name)
             rate_limit = platform_config.rate_limit or platform.rate_limit_rps
-            await self._rate_limit(platform.name, rate_limit)
-            
-            try:
-                result: PlatformResult = await platform.check_username(username, session)
-                
-                return SearchResult(
-                    username=username,
-                    platform=platform.name,
-                    exists=result.exists,
-                    url=result.url,
-                    confidence=result.confidence,
-                    response_time=result.response_time,
-                    metadata=result.metadata,
-                    error=result.error,
-                )
-                
-            except asyncio.TimeoutError:
-                return SearchResult(
-                    username=username,
-                    platform=platform.name,
-                    exists=False,
-                    error="Request timed out",
-                )
-                
-            except Exception as e:
-                return SearchResult(
-                    username=username,
-                    platform=platform.name,
-                    exists=False,
-                    error=str(e),
-                )
+            max_attempts = self.config.search.retry_attempts + 1
+            retry_delay = self.config.search.retry_delay
+
+            for attempt in range(max_attempts):
+                await self._rate_limit(platform.name, rate_limit)
+
+                try:
+                    session.headers["User-Agent"] = self._get_user_agent()
+                    result: PlatformResult = await platform.check_username(username, session)
+
+                    return SearchResult(
+                        username=username,
+                        platform=platform.name,
+                        exists=result.exists,
+                        url=result.url,
+                        confidence=result.confidence,
+                        response_time=result.response_time,
+                        metadata=result.metadata,
+                        error=result.error,
+                    )
+
+                except asyncio.TimeoutError:
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    return SearchResult(
+                        username=username,
+                        platform=platform.name,
+                        exists=False,
+                        error="Request timed out",
+                    )
+
+                except Exception as e:
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    return SearchResult(
+                        username=username,
+                        platform=platform.name,
+                        exists=False,
+                        error=str(e),
+                    )
+
+            # Should not reach here, but just in case
+            return SearchResult(
+                username=username,
+                platform=platform.name,
+                exists=False,
+                error="Max retries exceeded",
+            )
     
     async def search(
         self,

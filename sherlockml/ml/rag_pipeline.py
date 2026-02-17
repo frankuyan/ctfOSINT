@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -116,7 +116,7 @@ class RAGPipeline:
         
         # Add timestamp if not present
         if "indexed_at" not in doc.metadata:
-            doc.metadata["indexed_at"] = datetime.utcnow().isoformat()
+            doc.metadata["indexed_at"] = datetime.now(timezone.utc).isoformat()
         
         # Generate embedding
         embedding = self.encoder.encode(content).tolist()
@@ -160,7 +160,7 @@ class RAGPipeline:
             # Add timestamps
             for meta in metadatas:
                 if "indexed_at" not in meta:
-                    meta["indexed_at"] = datetime.utcnow().isoformat()
+                    meta["indexed_at"] = datetime.now(timezone.utc).isoformat()
             
             self.collection.upsert(
                 ids=ids,
