@@ -9,7 +9,6 @@ from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings
 
 
 def expand_env_vars(value: str) -> str:

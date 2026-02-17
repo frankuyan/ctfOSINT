@@ -6,7 +6,7 @@ import json
 import random
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -122,7 +122,7 @@ class RLController:
                 failures=0,
                 total_searches=0,
                 avg_response_time=0.0,
-                last_updated=datetime.utcnow().isoformat(),
+                last_updated=datetime.now(timezone.utc).isoformat(),
             )
         
         total_time = row[4] or 0.0
@@ -135,7 +135,7 @@ class RLController:
             failures=row[2],
             total_searches=total_searches,
             avg_response_time=avg_time,
-            last_updated=row[5] or datetime.utcnow().isoformat(),
+            last_updated=row[5] or datetime.now(timezone.utc).isoformat(),
         )
     
     def get_all_stats(self) -> list[PlatformStats]:
@@ -225,29 +225,38 @@ class RLController:
             response_time: Request response time
             context: Optional context for training history
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         
-        # Upsert platform stats
+        # Upsert platform stats with learning rate weighting
+        # When learning_rate < 1.0, recent observations are weighted more
+        # by scaling down historical counts before adding new observation
+        lr = self.learning_rate
+        decay = 1.0 - lr  # decay factor for historical counts
+        success_val = 1 if flag_found else 0
+        failure_val = 0 if flag_found else 1
+
         self.conn.execute(
             """
             INSERT INTO platform_stats (name, successes, failures, total_searches,
                                          total_response_time, last_updated)
             VALUES (?, ?, ?, 1, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
-                successes = successes + ?,
-                failures = failures + ?,
+                successes = CAST(successes * ? AS INTEGER) + ?,
+                failures = CAST(failures * ? AS INTEGER) + ?,
                 total_searches = total_searches + 1,
                 total_response_time = total_response_time + ?,
                 last_updated = ?
             """,
             (
                 platform,
-                1 if flag_found else 0,
-                0 if flag_found else 1,
+                success_val,
+                failure_val,
                 response_time,
                 now,
-                1 if flag_found else 0,
-                0 if flag_found else 1,
+                decay,
+                success_val,
+                decay,
+                failure_val,
                 response_time,
                 now,
             ),

@@ -84,8 +84,8 @@ class NERExtractor:
             re.compile(r'(flag|ctf|glug|hxp|picoCTF|HTB|THM|OSCTF)\{[^}]+\}', re.IGNORECASE),
             re.compile(r'FLAG\{[^}]+\}'),
             re.compile(r'CTF\{[^}]+\}'),
-            # Base64-ish flags
-            re.compile(r'[A-Za-z0-9+/]{20,}={0,2}'),
+            # Base64-encoded flags (require trailing padding)
+            re.compile(r'[A-Za-z0-9+/]{40,}={1,2}'),
         ],
         "hashes": [
             # MD5
@@ -104,8 +104,8 @@ class NERExtractor:
         "ips": [
             # IPv4
             re.compile(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'),
-            # IPv6 (simplified)
-            re.compile(r'\b[0-9a-fA-F:]{7,}\b'),
+            # IPv6 (require at least two colon-separated hex groups)
+            re.compile(r'\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b'),
         ],
         "usernames": [
             # @mentions

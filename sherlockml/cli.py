@@ -93,11 +93,22 @@ async def search(
     config: Config = ctx.obj['config']
     
     # Override config with CLI options
-    if rate_limit:
+    if rate_limit is not None:
         config.search.default_rate_limit = rate_limit
     if proxy:
         config.proxy.enabled = True
-        # Parse proxy URL
+        from urllib.parse import urlparse
+        parsed = urlparse(proxy)
+        if parsed.scheme:
+            config.proxy.type = parsed.scheme
+        if parsed.hostname:
+            config.proxy.host = parsed.hostname
+        if parsed.port:
+            config.proxy.port = parsed.port
+        if parsed.username:
+            config.proxy.username = parsed.username
+        if parsed.password:
+            config.proxy.password = parsed.password
     if fast_fail:
         config.ctf.fast_fail = True
     
@@ -175,11 +186,11 @@ async def search(
             console.print(f"  {flag}")
     
     # Save output
-    if output or format != 'json':
+    if output is not None or format in ('md', 'both'):
         from sherlockml.output.json_reporter import JSONReporter
         from sherlockml.output.markdown_writer import MarkdownWriter
-        
-        output = output or Path(f"sherlockml_{username}.json")
+
+        output = output or Path(f"sherlockml_{username}")
         
         if format in ('json', 'both'):
             reporter = JSONReporter()
@@ -338,7 +349,7 @@ def rag_query(ctx: click.Context, query: str, top_k: int, threshold: float) -> N
 @main.command('scan-github')
 @click.argument('username')
 @click.option('--commits', is_flag=True, help='Search commit history')
-@click.option('--gists', is_flag=True, default=True, help='Include gists')
+@click.option('--gists/--no-gists', default=True, help='Include gists')
 @click.option('--depth', '-d', type=int, default=10, help='Search depth (pages)')
 @click.option('--output', '-o', type=click.Path(path_type=Path), help='Output file')
 @click.pass_context

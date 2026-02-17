@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
+
+from sherlockml import __version__
 
 if TYPE_CHECKING:
     from sherlockml.enum.orchestrator import SearchResult, SearchResults
@@ -190,8 +192,8 @@ class JSONReporter:
         result_entries.sort(key=lambda x: x["confidence_score"], reverse=True)
         
         report = {
-            "sherlockml_version": "1.0.0",
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "sherlockml_version": __version__,
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "query": {
                 "target_username": results.query_username,
                 "variants_searched": results.variants_searched,
@@ -243,4 +245,4 @@ class JSONReporter:
             JSON string
         """
         indent = 2 if self.pretty_print else None
-        return json.dump(report, indent=indent, ensure_ascii=False)
+        return json.dumps(report, indent=indent, ensure_ascii=False)

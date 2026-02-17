@@ -183,11 +183,11 @@ class UsernameVariants:
             return False
         
         # Allow alphanumeric, underscore, dot, dash
-        if not re.match(r'^[a-zA-Z0-9_.\\-]+$', username):
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', username):
             return False
-        
+
         # No consecutive special characters
-        if re.search(r'[_.\\-]{2,}', username):
+        if re.search(r'[_.-]{2,}', username):
             return False
         
         return True
