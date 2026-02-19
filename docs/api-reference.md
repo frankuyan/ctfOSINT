@@ -13,16 +13,17 @@ pip install sherlockml
 ```python
 import asyncio
 from sherlockml.config import load_config
-from sherlockml.enum import get_registry, Orchestrator
+from sherlockml.enum.registry import get_registry
+from sherlockml.enum.orchestrator import Orchestrator
 
 async def search_user(username: str):
     config = load_config()
     registry = get_registry()
     platforms = registry.get_enabled(config)
-    
+
     orchestrator = Orchestrator(config)
     results = await orchestrator.search([username], platforms)
-    
+
     print(f"Found {results.found_count} profiles")
     for result in results.results:
         if result.exists:
@@ -56,14 +57,14 @@ create_default_config_file("/path/to/new_config.yaml")
 ```python
 config = load_config()
 
-# Access platform settings
-github_config = config.platforms.get("github")
+# Access platform settings (returns defaults if not configured)
+github_config = config.get_platform("github")
 print(github_config.enabled)
 print(github_config.priority_weight)
 
 # Access ML settings
 print(config.ml.rag_threshold)
-print(config.ml.vectorstore_path)
+print(config.ml.vectorstore_dir)  # Returns expanded Path
 
 # Access search settings
 print(config.search.max_concurrent)
@@ -77,7 +78,7 @@ print(config.search.request_timeout)
 ### UsernameVariants
 
 ```python
-from sherlockml.enum import UsernameVariants
+from sherlockml.enum.variants import UsernameVariants
 
 gen = UsernameVariants()
 
@@ -112,28 +113,28 @@ ranked = gen.rank_by_similarity(variants, "johndoe")
 ### PlatformRegistry
 
 ```python
-from sherlockml.enum import get_registry
+from sherlockml.enum.registry import get_registry
 
 registry = get_registry()
 
-# Get all platforms
-all_platforms = registry.get_all()
-
-# Get enabled platforms
+# Get enabled platforms (sorted by priority)
 enabled = registry.get_enabled(config)
 
-# Get specific platform
-github = registry.get("github")
+# Get specific platform instance
+github = registry.get("github", auth_token="ghp_xxx")
 
-# List platform names
-names = registry.list_platforms()
+# List available platform names
+names = registry.available_platforms
 # ['github', 'twitter', 'reddit', ...]
+
+# Get platforms by category
+code_platforms = registry.get_by_category("code", config)
 ```
 
 ### Orchestrator
 
 ```python
-from sherlockml.enum import Orchestrator
+from sherlockml.enum.orchestrator import Orchestrator
 
 orchestrator = Orchestrator(config)
 
@@ -199,20 +200,27 @@ for result in results.results:
 ### RAGPipeline
 
 ```python
-from sherlockml.ml import RAGPipeline
+from sherlockml.ml.rag_pipeline import RAGPipeline
 
 # Initialize
-rag = RAGPipeline(config.ml.vectorstore_path)
+rag = RAGPipeline(config.ml.vectorstore_dir)
 
 # Check count
 print(f"Documents indexed: {rag.count}")
 
-# Index documents
+# Index a single document
+doc_id = rag.index(
+    content="User bio text...",
+    metadata={"platform": "github", "username": "johndoe"},
+)
+
+# Index in batch
+from sherlockml.ml.rag_pipeline import RAGDocument
 documents = [
-    {"content": "User bio text...", "source": "github", "username": "johndoe"},
-    {"content": "Tweet content...", "source": "twitter", "username": "johndoe"},
+    RAGDocument(content="User bio text...", metadata={"platform": "github"}),
+    RAGDocument(content="Tweet content...", metadata={"platform": "twitter"}),
 ]
-rag.index(documents)
+rag.index_batch(documents)
 
 # Query
 results = rag.query(
@@ -226,6 +234,13 @@ for result in results:
     print(f"Content: {result.content[:100]}")
     print(f"Metadata: {result.metadata}")
 
+# Get documents by platform
+github_docs = rag.get_by_platform("github")
+
+# Export/import
+rag.export_to_json(Path("backup.json"))
+rag.import_from_json(Path("backup.json"))
+
 # Clear database
 rag.clear()
 ```
@@ -233,38 +248,42 @@ rag.clear()
 ### RLController
 
 ```python
-from sherlockml.ml import RLController
+from sherlockml.ml.rl_controller import RLController
 
 # Initialize (context manager for SQLite)
-with RLController(config.ml.rl_weights_db) as rl:
-    # Select platforms
+with RLController(config.ml.rl_weights_path) as rl:
+    # Select platforms using Thompson Sampling
     selected = rl.select_platforms(
         available=["github", "twitter", "reddit"],
         n=2,
         use_thompson=True,
     )
     # ['github', 'reddit'] (based on learned weights)
-    
+
     # Update after result
     rl.update(
         platform="github",
-        success=True,
+        flag_found=True,
         response_time=0.5,
     )
-    
+
+    # Get stats for a platform
+    stats = rl.get_stats("github")
+    print(f"Success rate: {stats.success_rate}")
+
     # Export weights
     weights = rl.export_weights()
     # {'github': 0.87, 'twitter': 0.65, 'reddit': 0.72}
-    
+
     # Train on dataset
-    stats = rl.train("ctf_data.json", epochs=50)
-    print(f"Trained on {stats['entries']} challenges")
+    train_stats = rl.train("ctf_data.json", epochs=50)
+    print(f"Trained on {train_stats['entries']} challenges")
 ```
 
 ### NERExtractor
 
 ```python
-from sherlockml.ml import NERExtractor
+from sherlockml.ml.ner_extractor import NERExtractor
 
 ner = NERExtractor()
 
@@ -297,7 +316,7 @@ flags = ner.find_flags(text)
 ### GitHubScanner
 
 ```python
-from sherlockml.extract import GitHubScanner
+from sherlockml.extract.github_scanner import GitHubScanner
 import aiohttp
 
 scanner = GitHubScanner(auth_token="ghp_xxx")
@@ -324,7 +343,7 @@ async with aiohttp.ClientSession() as session:
 ### WaybackIntegration
 
 ```python
-from sherlockml.extract import WaybackIntegration
+from sherlockml.extract.wayback import WaybackIntegration
 import aiohttp
 
 wayback = WaybackIntegration()
@@ -353,7 +372,7 @@ async with aiohttp.ClientSession() as session:
 ### SocialMediaParser
 
 ```python
-from sherlockml.extract import SocialMediaParser
+from sherlockml.extract.social_parser import SocialMediaParser
 
 parser = SocialMediaParser()
 
@@ -386,7 +405,7 @@ parser.export_graphml("social_graph.graphml")
 ### JSONReporter
 
 ```python
-from sherlockml.output import JSONReporter
+from sherlockml.output.json_reporter import JSONReporter
 
 reporter = JSONReporter(pretty_print=True)
 
@@ -406,7 +425,7 @@ confidence = reporter.calculate_confidence(single_result, all_results)
 ### MarkdownWriter
 
 ```python
-from sherlockml.output import MarkdownWriter
+from sherlockml.output.markdown_writer import MarkdownWriter
 
 writer = MarkdownWriter()
 
@@ -428,7 +447,7 @@ summary = writer.generate_quick_summary(results)
 ### GraphvizExporter
 
 ```python
-from sherlockml.output import GraphvizExporter
+from sherlockml.output.graphviz_export import GraphvizExporter
 
 exporter = GraphvizExporter()
 
@@ -449,31 +468,31 @@ success = exporter.render_to_image("network.dot", "network.png", format="png")
 ### Creating a Platform
 
 ```python
-from sherlockml.enum.platform_base import BasePlatform, PlatformResult
+from sherlockml.enum.platform_base import BasePlatform, PlatformResult, PlatformCategory
 
 class MyPlatform(BasePlatform):
     name = "myplatform"
+    display_name = "My Platform"
     base_url = "https://myplatform.com"
-    rate_limit = 10.0
-    
-    @classmethod
-    def is_valid_username(cls, username: str) -> bool:
+    url_template = "https://myplatform.com/u/{username}"
+    category = PlatformCategory.OTHER
+    rate_limit_rpm = 30.0  # requests per minute
+
+    def validate_username(self, username: str) -> bool:
         return len(username) >= 3 and username.isalnum()
-    
-    async def check(self, username: str, session) -> PlatformResult:
-        url = f"{self.base_url}/u/{username}"
-        
+
+    async def check_username(self, username: str, session) -> PlatformResult:
+        url = self.get_url(username)
+
         async with session.get(url) as resp:
             exists = resp.status == 200
             metadata = {}
-            
+
             if exists:
                 data = await resp.json()
                 metadata = {"bio": data.get("bio")}
-            
+
             return PlatformResult(
-                platform=self.name,
-                username=username,
                 exists=exists,
                 url=url if exists else None,
                 metadata=metadata,

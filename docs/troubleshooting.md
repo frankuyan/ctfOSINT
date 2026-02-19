@@ -350,7 +350,7 @@ from sherlockml.platforms.github import GitHubPlatform
 async def test():
     platform = GitHubPlatform()
     async with aiohttp.ClientSession() as session:
-        result = await platform.check("octocat", session)
+        result = await platform.check_username("octocat", session)
         print(result)
 
 asyncio.run(test())
