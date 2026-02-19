@@ -107,7 +107,7 @@ Generates username permutations with:
 - Jaro-Winkler fuzzy matching
 
 ```python
-from sherlockml.enum import UsernameVariants
+from sherlockml.enum.variants import UsernameVariants
 
 gen = UsernameVariants()
 variants = gen.generate("johndoe", leet=True, years=(2020, 2025))
@@ -123,7 +123,7 @@ Manages concurrent async searches with:
 - Flag detection
 
 ```python
-from sherlockml.enum import Orchestrator
+from sherlockml.enum.orchestrator import Orchestrator
 
 orchestrator = Orchestrator(config)
 results = await orchestrator.search(usernames, platforms)
@@ -136,7 +136,7 @@ Dynamic plugin loading from:
 - User plugins (`~/.sherlockml/plugins/`)
 
 ```python
-from sherlockml.enum import get_registry
+from sherlockml.enum.registry import get_registry
 
 registry = get_registry()
 platforms = registry.get_enabled(config)
@@ -149,15 +149,15 @@ platforms = registry.get_enabled(config)
 #### RAGPipeline
 
 Semantic search using:
-- ChromaDB or Qdrant for vector storage
+- ChromaDB for vector storage
 - Sentence Transformers for embeddings
 - Incremental indexing
 
 ```python
-from sherlockml.ml import RAGPipeline
+from sherlockml.ml.rag_pipeline import RAGPipeline
 
 rag = RAGPipeline(vectorstore_path)
-rag.index(documents)
+rag.index("document content", metadata={"platform": "github"})
 results = rag.query("find email addresses", top_k=10)
 ```
 
@@ -169,11 +169,11 @@ Thompson Sampling multi-armed bandit for platform prioritization:
 - Persists weights in SQLite
 
 ```python
-from sherlockml.ml import RLController
+from sherlockml.ml.rl_controller import RLController
 
-rl = RLController(weights_db_path)
-platforms = rl.select_platforms(available, n=5)
-rl.update("github", success=True, response_time=0.5)
+with RLController(weights_db_path) as rl:
+    platforms = rl.select_platforms(available, n=5)
+    rl.update("github", flag_found=True, response_time=0.5)
 ```
 
 #### NERExtractor
@@ -183,7 +183,7 @@ Entity extraction combining:
 - Custom regex for CTF-specific patterns (flags, hashes, IPs)
 
 ```python
-from sherlockml.ml import NERExtractor
+from sherlockml.ml.ner_extractor import NERExtractor
 
 ner = NERExtractor()
 entities = ner.extract(text)
@@ -269,27 +269,33 @@ async def search_flow():
     async with aiohttp.ClientSession() as session:
         # Semaphore limits concurrent requests
         semaphore = asyncio.Semaphore(10)
-        
+
         tasks = [
-            check_platform(platform, username, session, semaphore)
+            asyncio.create_task(
+                check_platform(platform, username, session, semaphore)
+            )
             for platform in platforms
             for username in usernames
         ]
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results as they complete
+        for coro in asyncio.as_completed(tasks):
+            result = await coro
+            process_result(result)
 ```
 
 ### Rate Limiting
 
-Token bucket algorithm per platform:
+Interval-based rate limiting per platform using asyncio locks:
 
 ```python
-class RateLimiter:
-    async def acquire(self):
-        while self.tokens < 1:
-            await asyncio.sleep(0.1)
-            self._refill()
-        self.tokens -= 1
+async def _rate_limit(self, platform_name: str, rate_limit: float) -> None:
+    async with self._rate_limiters[platform_name]:
+        min_interval = 1.0 / rate_limit
+        elapsed = time.monotonic() - self._last_request.get(platform_name, 0)
+        if elapsed < min_interval:
+            await asyncio.sleep(min_interval - elapsed)
+        self._last_request[platform_name] = time.monotonic()
 ```
 
 ---
@@ -300,22 +306,23 @@ class RateLimiter:
 
 ```python
 # ~/.sherlockml/plugins/my_platform.py
-from sherlockml.enum.platform_base import BasePlatform, PlatformResult
+from sherlockml.enum.platform_base import BasePlatform, PlatformResult, PlatformCategory
 
 class MyPlatform(BasePlatform):
     name = "myplatform"
+    display_name = "My Platform"
     base_url = "https://myplatform.com"
-    
-    @classmethod
-    def is_valid_username(cls, username: str) -> bool:
+    url_template = "https://myplatform.com/users/{username}"
+    category = PlatformCategory.OTHER
+    rate_limit_rpm = 30.0
+
+    def validate_username(self, username: str) -> bool:
         return len(username) >= 3
-    
-    async def check(self, username: str, session) -> PlatformResult:
-        url = f"{self.base_url}/users/{username}"
+
+    async def check_username(self, username: str, session) -> PlatformResult:
+        url = self.get_url(username)
         async with session.get(url) as resp:
             return PlatformResult(
-                platform=self.name,
-                username=username,
                 exists=resp.status == 200,
                 url=url,
             )

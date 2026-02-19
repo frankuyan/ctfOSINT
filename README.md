@@ -7,7 +7,7 @@
 
 ## Features
 
-- 🔍 **Smart Enumeration**: Search 50+ platforms with async parallelism
+- 🔍 **Smart Enumeration**: Search 10+ built-in platforms with async parallelism
 - 🧠 **ML-Powered**: RAG for semantic search, RL for platform prioritization
 - 🚩 **CTF-Optimized**: Flag detection, fast-fail mode, writeup generation
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
@@ -125,7 +125,7 @@ sherlockml/
 │   ├── json_reporter.py
 │   ├── graphviz_export.py
 │   └── markdown_writer.py
-└── platforms/      # Built-in platforms (50+)
+└── platforms/      # Built-in platforms (10+)
 ```
 
 ## CTF Features
@@ -162,7 +162,7 @@ ansible-playbook -i inventory playbook.yml \
 
 ## Performance
 
-- 200+ platforms with 20 variants: < 2 minutes
+- 10+ platforms with 20 variants: < 2 minutes
 - Vectorstore query latency: < 100ms
 - RL model update: < 1s per feedback
 - Memory footprint: < 500MB base

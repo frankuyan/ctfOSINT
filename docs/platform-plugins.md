@@ -1,6 +1,6 @@
 # Platform Plugins Guide
 
-SherlockML includes 10+ built-in platforms and supports custom plugins.
+SherlockML includes 10 built-in platforms and supports custom plugins via the plugin system.
 
 ## Built-in Platforms
 
@@ -196,39 +196,46 @@ Place plugins in: `~/.sherlockml/plugins/`
 
 ```python
 """Custom platform plugin for MyService."""
-from sherlockml.enum.platform_base import BasePlatform, PlatformResult, PlatformMetadata
+from sherlockml.enum.platform_base import BasePlatform, PlatformResult, PlatformCategory
+import time
 
 class MyServicePlatform(BasePlatform):
     """MyService platform integration."""
-    
+
     # Required attributes
     name = "myservice"
+    display_name = "My Service"
     base_url = "https://myservice.com"
-    
+    url_template = "https://myservice.com/users/{username}"
+    category = PlatformCategory.OTHER
+
     # Optional attributes
-    rate_limit = 10.0  # requests per minute
-    timeout = 15.0  # seconds
-    
-    @classmethod
-    def is_valid_username(cls, username: str) -> bool:
+    rate_limit_rpm = 30.0  # requests per minute
+
+    def validate_username(self, username: str) -> bool:
         """Validate username format for this platform."""
-        # MyService usernames: 3-20 chars, alphanumeric + underscore
         if len(username) < 3 or len(username) > 20:
             return False
         return username.replace("_", "").isalnum()
-    
-    async def check(
+
+    async def check_username(
         self,
         username: str,
-        session: "aiohttp.ClientSession",
+        session,
     ) -> PlatformResult:
         """Check if username exists on this platform."""
-        url = f"{self.base_url}/users/{username}"
-        
+        if not self.validate_username(username):
+            return PlatformResult(exists=False, error="Invalid username format")
+
+        url = self.get_url(username)
+        headers = self.get_headers()
+        start = time.monotonic()
+
         try:
-            async with session.get(url, timeout=self.timeout) as resp:
+            async with session.get(url, headers=headers) as resp:
+                response_time = time.monotonic() - start
                 exists = resp.status == 200
-                
+
                 metadata = {}
                 if exists:
                     data = await resp.json()
@@ -237,45 +244,48 @@ class MyServicePlatform(BasePlatform):
                         "bio": data.get("bio"),
                         "followers": data.get("followers_count"),
                     }
-                
+
                 return PlatformResult(
-                    platform=self.name,
-                    username=username,
                     exists=exists,
                     url=url if exists else None,
                     metadata=metadata,
+                    confidence=0.9 if exists else 0.95,
+                    response_time=response_time,
                 )
-                
+
         except Exception as e:
             return PlatformResult(
-                platform=self.name,
-                username=username,
                 exists=False,
                 error=str(e),
+                response_time=time.monotonic() - start,
             )
 ```
 
 ### HTTP Check Helper
 
-For simple HTTP-based checks, use the helper class:
+For simple HTTP status code-based checks, use the `HTTPCheckPlatform` base class:
 
 ```python
-from sherlockml.enum.platform_base import HTTPCheckPlatform
+from sherlockml.enum.platform_base import HTTPCheckPlatform, PlatformCategory
 
 class SimpleService(HTTPCheckPlatform):
     name = "simpleservice"
+    display_name = "Simple Service"
     base_url = "https://simpleservice.com"
-    url_template = "{base_url}/u/{username}"
-    
-    # Check passes if status is 200
-    success_codes = [200]
-    
-    # Optional: text that indicates user exists
-    exists_text = "Profile"
-    
-    # Optional: text that indicates user doesn't exist
-    not_exists_text = "User not found"
+    url_template = "https://simpleservice.com/u/{username}"
+    category = PlatformCategory.OTHER
+
+    # Check method: "HEAD" (faster) or "GET"
+    check_method = "GET"
+
+    # Status codes that indicate user exists
+    exists_status_codes = {200}
+
+    # Status codes that indicate user doesn't exist
+    not_found_status_codes = {404}
 ```
+
+This automatically handles requests, timing, and result creation.
 
 ### Plugin Discovery
 
@@ -294,14 +304,14 @@ from my_plugin import MyServicePlatform
 async def test_valid_user():
     platform = MyServicePlatform()
     async with aiohttp.ClientSession() as session:
-        result = await platform.check("known_user", session)
+        result = await platform.check_username("known_user", session)
         assert result.exists
-        
+
 @pytest.mark.asyncio
 async def test_invalid_user():
     platform = MyServicePlatform()
     async with aiohttp.ClientSession() as session:
-        result = await platform.check("definitely_not_a_user_12345", session)
+        result = await platform.check_username("definitely_not_a_user_12345", session)
         assert not result.exists
 ```
 
