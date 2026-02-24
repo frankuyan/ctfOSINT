@@ -38,7 +38,7 @@ sherlockml scan-github targetuser --commits --depth 20
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/sherlockml.git
+git clone https://github.com/sherlockml/sherlockml.git
 cd sherlockml
 pip install -e ".[dev]"
 

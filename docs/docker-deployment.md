@@ -6,7 +6,7 @@ Complete guide for deploying SherlockML with Docker.
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/sherlockml.git
+git clone https://github.com/sherlockml/sherlockml.git
 cd sherlockml
 
 # Configure environment

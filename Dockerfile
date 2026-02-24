@@ -4,7 +4,7 @@
 # =============================================================================
 # Stage 1: Builder - Install dependencies and build package
 # =============================================================================
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -32,7 +32,7 @@ RUN pip install spacy && \
 # =============================================================================
 # Stage 2: Runtime - Minimal production image
 # =============================================================================
-FROM python:3.11-slim as runtime
+FROM python:3.11-slim AS runtime
 
 # Labels for container metadata
 LABEL maintainer="SherlockML Team" \
@@ -51,7 +51,6 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     graphviz \
-    tor \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
@@ -61,9 +60,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
-# Copy SpaCy model from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages/en_core_web_sm \
-    /usr/local/lib/python3.11/site-packages/en_core_web_sm
+# Download SpaCy model in runtime stage (avoids fragile cross-stage copy)
+RUN python -m spacy download en_core_web_sm
 
 # Copy application code
 COPY sherlockml/ ./sherlockml/

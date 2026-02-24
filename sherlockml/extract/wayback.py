@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -149,8 +150,8 @@ class WaybackIntegration:
                                 mime_type=row[3],
                             ))
                             
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Failed to get snapshots for %s: %s", url, e)
         
         return snapshots
     
@@ -236,7 +237,8 @@ class WaybackIntegration:
                                 if path and path not in entries:
                                     entries.append(path)
                                     
-            except Exception:
+            except Exception as e:
+                logging.debug("Failed to fetch robots.txt snapshot: %s", e)
                 continue
         
         return entries
@@ -276,7 +278,8 @@ class WaybackIntegration:
                             if url not in urls:
                                 urls.append(url)
                                 
-            except Exception:
+            except Exception as e:
+                logging.debug("Failed to fetch sitemap snapshot: %s", e)
                 continue
         
         return urls
@@ -350,7 +353,7 @@ class WaybackIntegration:
             async with session.get(snapshots[0].wayback_url) as resp:
                 if resp.status == 200:
                     return await resp.text()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Failed to get content at date %s for %s: %s", target_date, url, e)
         
         return None

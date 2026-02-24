@@ -73,7 +73,7 @@ async def search(
     username: str,
     max_time: int,
     output: Path | None,
-    format: str,
+    output_format: str,
     fast_fail: bool,
     rate_limit: float | None,
     proxy: str | None,
@@ -186,20 +186,20 @@ async def search(
             console.print(f"  {flag}")
     
     # Save output
-    if output is not None or format in ('md', 'both'):
+    if output is not None or output_format in ('md', 'both'):
         from sherlockml.output.json_reporter import JSONReporter
         from sherlockml.output.markdown_writer import MarkdownWriter
 
         output = output or Path(f"sherlockml_{username}")
         
-        if format in ('json', 'both'):
+        if output_format in ('json', 'both'):
             reporter = JSONReporter()
             report = reporter.generate_report(results)
             json_path = output.with_suffix('.json')
             reporter.save(report, json_path)
             console.print(f"\n[dim]Saved JSON: {json_path}[/dim]")
         
-        if format in ('md', 'both'):
+        if output_format in ('md', 'both'):
             writer = MarkdownWriter()
             markdown = writer.generate_writeup(results)
             md_path = output.with_suffix('.md')

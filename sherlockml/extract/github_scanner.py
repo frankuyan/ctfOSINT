@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
@@ -201,8 +202,8 @@ class GitHubScanner:
             async with session.get(url, headers=self._get_headers(), params=params) as resp:
                 if resp.status == 200:
                     return await resp.json()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Failed to get repos for %s: %s", username, e)
         
         return []
     
@@ -254,7 +255,8 @@ class GitHubScanner:
                             url=item.get("html_url", ""),
                         ))
                         
-            except Exception:
+            except Exception as e:
+                logging.debug("Failed to search commits for %s (page %d): %s", username, page, e)
                 break
         
         return commits
@@ -284,8 +286,8 @@ class GitHubScanner:
                             files=list(item.get("files", {}).keys()),
                             created_at=item.get("created_at", ""),
                         ))
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Failed to get gists for %s: %s", username, e)
         
         return gists
     
@@ -317,8 +319,8 @@ class GitHubScanner:
                 if resp.status == 200:
                     data = await resp.json()
                     results = data.get("items", [])
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Code search failed for query '%s': %s", query, e)
         
         return results[:max_results]
     

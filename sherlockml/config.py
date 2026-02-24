@@ -35,6 +35,7 @@ class PlatformConfig(BaseModel):
     search_commits: bool = False
     custom_headers: dict[str, str] = Field(default_factory=dict)
     rate_limit: float | None = None  # Platform-specific rate limit override
+    instance_url: str | None = None  # For federated platforms (e.g. Mastodon)
     
     @field_validator('auth_token', mode='before')
     @classmethod
@@ -48,10 +49,16 @@ class MLConfig(BaseModel):
     """Machine learning configuration."""
     rag_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     rl_learning_rate: float = Field(default=0.1, ge=0.0, le=1.0)
+    rl_exploration_rate: float = Field(default=0.15, ge=0.0, le=1.0)
     ner_model_path: str = "~/.sherlockml/ner_model"
+    ner_model: str = "en_core_web_sm"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    vectorstore_type: str = "chromadb"  # chromadb or qdrant
     vectorstore_path: str = "~/.sherlockml/vectorstore"
+    chromadb_host: str = "localhost"
+    chromadb_port: int = 8000
     rl_weights_db: str = "~/.sherlockml/rl_weights.db"
+    custom_patterns_file: str | None = None
     
     @property
     def ner_model_dir(self) -> Path:
@@ -88,6 +95,9 @@ class ProxyConfig(BaseModel):
     username: str | None = None
     password: str | None = None
     rotate: bool = False  # Rotate through proxy list
+    rotate_enabled: bool = True  # Enable identity rotation
+    rotate_interval: int = 300  # Seconds between rotations
+    control_port: int = 9051  # Tor control port
     
     @property
     def url(self) -> str:
@@ -103,7 +113,10 @@ class OutputConfig(BaseModel):
     include_raw_responses: bool = False
     pretty_print: bool = True
     flags_file: str = "~/.sherlockml/flags.json"
+    results_dir: str = "~/.sherlockml/results"
     writeup_template: str = "~/.sherlockml/templates/writeup.md.j2"
+    graph_format: str = "svg"
+    graph_rankdir: str = "LR"
     
     @property
     def flags_path(self) -> Path:
@@ -119,6 +132,18 @@ class CTFConfig(BaseModel):
     ])
     fast_fail: bool = False  # Stop after first flag found
     time_travel_date: str | None = None  # Set search date for historical queries
+    priority_platforms: list[str] = Field(default_factory=lambda: [
+        "pastebin", "github", "keybase", "hackernews",
+    ])
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+    level: str = "INFO"
+    format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file: str | None = None
+    rotate_size: int = 10_485_760  # 10MB
+    backup_count: int = 5
 
 
 class Config(BaseModel):
@@ -129,6 +154,7 @@ class Config(BaseModel):
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     ctf: CTFConfig = Field(default_factory=CTFConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
     plugins_dir: str = "~/.sherlockml/plugins"
     data_dir: str = "~/.sherlockml/data"
     

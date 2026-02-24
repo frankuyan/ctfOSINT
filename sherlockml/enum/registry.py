@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import logging
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -109,7 +110,7 @@ class PlatformRegistry:
                             
                 except Exception as e:
                     # Log but continue on errors
-                    print(f"Warning: Failed to load platform {module_name}: {e}")
+                    logging.warning("Failed to load platform %s: %s", module_name, e)
                     
         except ImportError:
             # No platforms module yet
@@ -158,7 +159,7 @@ class PlatformRegistry:
                         count += 1
                         
             except Exception as e:
-                print(f"Warning: Failed to load plugin {plugin_path}: {e}")
+                logging.warning("Failed to load plugin %s: %s", plugin_path, e)
         
         return count
     

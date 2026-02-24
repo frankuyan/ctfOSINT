@@ -241,8 +241,8 @@ class RLController:
                                          total_response_time, last_updated)
             VALUES (?, ?, ?, 1, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
-                successes = CAST(successes * ? AS INTEGER) + ?,
-                failures = CAST(failures * ? AS INTEGER) + ?,
+                successes = ROUND(successes * ?) + ?,
+                failures = ROUND(failures * ?) + ?,
                 total_searches = total_searches + 1,
                 total_response_time = total_response_time + ?,
                 last_updated = ?
