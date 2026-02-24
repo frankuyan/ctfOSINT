@@ -189,7 +189,9 @@ class Orchestrator:
                 await self._rate_limit(platform.name, rate_limit)
 
                 try:
-                    session.headers["User-Agent"] = self._get_user_agent()
+                    # Create per-request headers to avoid race condition
+                    # on shared session (don't mutate session.headers)
+                    request_headers = {"User-Agent": self._get_user_agent()}
                     result: PlatformResult = await platform.check_username(username, session)
 
                     return SearchResult(

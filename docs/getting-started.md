@@ -14,7 +14,7 @@ This guide will help you install SherlockML and run your first OSINT search.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/sherlockml.git
+git clone https://github.com/sherlockml/sherlockml.git
 cd sherlockml
 
 # Create virtual environment
@@ -32,7 +32,7 @@ python -m spacy download en_core_web_sm
 
 ```bash
 # Clone and build
-git clone https://github.com/yourusername/sherlockml.git
+git clone https://github.com/sherlockml/sherlockml.git
 cd sherlockml
 
 # Copy environment file and configure
