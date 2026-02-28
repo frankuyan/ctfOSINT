@@ -60,7 +60,7 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.argument('username')
 @click.option('--max-time', '-t', type=int, default=90, help='Maximum search time in seconds')
 @click.option('--output', '-o', type=click.Path(path_type=Path), help='Output file path')
-@click.option('--format', '-f', type=click.Choice(['json', 'md', 'both']), default='json')
+@click.option('--format', '-f', 'output_format', type=click.Choice(['json', 'md', 'both']), default='json')
 @click.option('--fast-fail', is_flag=True, help='Stop after first flag found')
 @click.option('--rate-limit', '-r', type=float, default=None, help='Global requests/sec')
 @click.option('--proxy', type=str, help='Proxy URL (socks5://host:port)')
