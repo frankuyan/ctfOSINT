@@ -48,11 +48,11 @@ sherlockml/
 │   ├── registry.py       # Plugin system
 │   └── orchestrator.py   # Async search coordination
 │
-├── platforms/            # Built-in Platforms
-│   ├── github.py
-│   ├── twitter.py
-│   ├── reddit.py
-│   └── ... (10+ platforms)
+├── platforms/            # Built-in Platforms (70)
+│   ├── github.py         # Social, Code, Video, Gaming,
+│   ├── twitter.py        # Creative, Music, Professional,
+│   ├── reddit.py         # Forum, CTF/Security, and more
+│   └── ... (70 platforms across 12 categories)
 │
 ├── ml/                   # Machine Learning
 │   ├── rag_pipeline.py   # Vector search
@@ -268,7 +268,7 @@ SherlockML uses `asyncio` for non-blocking I/O:
 async def search_flow():
     async with aiohttp.ClientSession() as session:
         # Semaphore limits concurrent requests
-        semaphore = asyncio.Semaphore(10)
+        semaphore = asyncio.Semaphore(25)
 
         tasks = [
             asyncio.create_task(

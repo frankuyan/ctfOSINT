@@ -59,6 +59,262 @@ platforms:
     priority_weight: 0.60
     rate_limit: 3.0
 
+  # --- Social ---
+  snapchat:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 3.0
+  telegram:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 3.0
+  discord:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 2.0
+  tumblr:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  threads:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 3.0
+  bluesky:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  askfm:
+    enabled: true
+    priority_weight: 0.40
+    rate_limit: 5.0
+  imgur:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+
+  # --- Video ---
+  youtube:
+    enabled: true
+    priority_weight: 0.70
+    rate_limit: 5.0
+  tiktok:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 3.0
+  twitch:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  vimeo:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 5.0
+  dailymotion:
+    enabled: true
+    priority_weight: 0.40
+    rate_limit: 5.0
+
+  # --- Code / Dev ---
+  bitbucket:
+    enabled: true
+    priority_weight: 0.80
+    rate_limit: 10.0
+  stackoverflow:
+    enabled: true
+    priority_weight: 0.75
+    rate_limit: 5.0
+  devto:
+    enabled: true
+    priority_weight: 0.70
+    rate_limit: 10.0
+  codepen:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  replit:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+  npm:
+    enabled: true
+    priority_weight: 0.75
+    rate_limit: 10.0
+  pypi:
+    enabled: true
+    priority_weight: 0.75
+    rate_limit: 10.0
+  dockerhub:
+    enabled: true
+    priority_weight: 0.78
+    rate_limit: 10.0
+  rubygems:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 10.0
+  cratesio:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 10.0
+  kaggle:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 5.0
+  leetcode:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  codeforces:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  hashnode:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  gitea:
+    enabled: true
+    priority_weight: 0.70
+    rate_limit: 10.0
+  gist:
+    enabled: true
+    priority_weight: 0.88
+    rate_limit: 10.0
+  hackerone:
+    enabled: true
+    priority_weight: 0.72
+    rate_limit: 3.0
+
+  # --- CTF / Security ---
+  tryhackme:
+    enabled: true
+    priority_weight: 0.85
+    rate_limit: 5.0
+  hackthebox:
+    enabled: true
+    priority_weight: 0.85
+    rate_limit: 3.0
+
+  # --- Creative ---
+  pinterest:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 3.0
+  medium:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 5.0
+  dribbble:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  behance:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  deviantart:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 5.0
+  wordpress:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+  wattpad:
+    enabled: true
+    priority_weight: 0.40
+    rate_limit: 5.0
+  newgrounds:
+    enabled: true
+    priority_weight: 0.40
+    rate_limit: 5.0
+  substack:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  buymeacoffee:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  patreon:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 3.0
+
+  # --- Music ---
+  soundcloud:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+  spotify:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+  mixcloud:
+    enabled: true
+    priority_weight: 0.40
+    rate_limit: 5.0
+
+  # --- Gaming ---
+  steam:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 5.0
+  roblox:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  xbox:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 3.0
+  chesscom:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 5.0
+  lichess:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 5.0
+
+  # --- Professional ---
+  aboutme:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  slideshare:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 5.0
+  trello:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+  producthunt:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+
+  # --- Forum / News ---
+  quora:
+    enabled: true
+    priority_weight: 0.50
+    rate_limit: 3.0
+  lobsters:
+    enabled: true
+    priority_weight: 0.65
+    rate_limit: 5.0
+
+  # --- Other ---
+  gravatar:
+    enabled: true
+    priority_weight: 0.60
+    rate_limit: 10.0
+  linktree:
+    enabled: true
+    priority_weight: 0.55
+    rate_limit: 5.0
+
 # =============================================================================
 # Machine Learning Configuration
 # =============================================================================
@@ -84,7 +340,7 @@ ml:
 # Search Configuration
 # =============================================================================
 search:
-  max_concurrent: 10
+  max_concurrent: 25
   request_timeout: 15
   default_rate_limit: 5.0
   retry_attempts: 3
@@ -137,8 +393,15 @@ ctf:
   priority_platforms:
     - pastebin
     - github
+    - gist
     - keybase
     - hackernews
+    - tryhackme
+    - hackthebox
+    - hackerone
+    - gitlab
+    - bitbucket
+    - gitea
 
 # =============================================================================
 # Logging Configuration

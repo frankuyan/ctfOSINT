@@ -75,7 +75,7 @@ class MLConfig(BaseModel):
 
 class SearchConfig(BaseModel):
     """Search behavior configuration."""
-    max_concurrent: int = Field(default=10, ge=1, le=100)
+    max_concurrent: int = Field(default=25, ge=1, le=100)
     request_timeout: float = Field(default=15.0, ge=1.0, le=120.0)
     user_agents: list[str] = Field(default_factory=lambda: [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -133,7 +133,8 @@ class CTFConfig(BaseModel):
     fast_fail: bool = False  # Stop after first flag found
     time_travel_date: str | None = None  # Set search date for historical queries
     priority_platforms: list[str] = Field(default_factory=lambda: [
-        "pastebin", "github", "keybase", "hackernews",
+        "pastebin", "github", "gist", "keybase", "hackernews",
+        "tryhackme", "hackthebox", "hackerone", "gitlab", "bitbucket", "gitea",
     ])
 
 
@@ -275,7 +276,7 @@ ml:
   rl_weights_db: ~/.sherlockml/rl_weights.db
 
 search:
-  max_concurrent: 10
+  max_concurrent: 25
   request_timeout: 15
   default_rate_limit: 5.0
   retry_attempts: 3
