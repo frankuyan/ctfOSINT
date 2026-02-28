@@ -1,33 +1,127 @@
 # Platform Plugins Guide
 
-SherlockML includes 10 built-in platforms and supports custom plugins via the plugin system.
+SherlockML includes **70 built-in platforms** across 12 categories and supports custom plugins via the plugin system.
 
 ## Built-in Platforms
 
-### Tier 1: High Reliability (>0.85 weight)
+### Code / Developer (17 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
 | **GitHub** | 0.92 | Optional | User API, commits, gists, email extraction |
+| **GitHub Gist** | 0.88 | Optional | Gist listing, CTF snippet detection |
 | **Keybase** | 0.88 | No | Public keys, social proofs, identity verification |
 | **GitLab** | 0.85 | Optional | User API, project search |
 | **Pastebin** | 0.85 | No | Profile check, important for CTF flag leaks |
+| **Bitbucket** | 0.80 | No | User API, repository listing |
+| **Docker Hub** | 0.78 | No | User API, image listing |
+| **npm** | 0.75 | No | Package author profiles |
+| **PyPI** | 0.75 | No | Python package author profiles |
+| **Stack Overflow** | 0.75 | No | Stack Exchange API, reputation |
+| **HackerOne** | 0.72 | No | Bug bounty hacker profiles |
+| **DEV.to** | 0.70 | No | Developer blog profiles |
+| **Codeberg/Gitea** | 0.70 | No | Gitea API, user profiles |
+| **RubyGems** | 0.65 | No | Ruby package author profiles |
+| **Crates.io** | 0.65 | No | Rust package author profiles |
+| **Kaggle** | 0.65 | No | Data science profiles |
+| **Hashnode** | 0.60 | No | Developer blog profiles |
+| **CodePen** | 0.60 | No | Front-end developer profiles |
+| **LeetCode** | 0.60 | No | Competitive programming profiles |
+| **Codeforces** | 0.60 | No | Competitive programming API, ratings |
+| **Replit** | 0.55 | No | Online IDE profiles |
 
-### Tier 2: Medium Reliability (0.65-0.85 weight)
+### CTF / Security (2 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **TryHackMe** | 0.85 | No | CTF platform user profiles |
+| **Hack The Box** | 0.85 | No | CTF platform user profiles |
+
+### Social (8 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **Twitter/X** | 0.78 | Optional | Profile check, metadata extraction |
+| **Reddit** | 0.70 | No | JSON API, account age, karma |
+| **Telegram** | 0.65 | No | Public profile check |
+| **LinkedIn** | 0.65 | No | Basic profile check (anti-scraping limits) |
+| **Instagram** | 0.60 | No | Profile check, follower count |
+| **Bluesky** | 0.60 | No | AT Protocol API, profile data |
+| **Discord** | 0.55 | No | User profile lookup |
+| **Mastodon** | 0.55 | No | WebFinger lookup, ActivityPub |
+| **Threads** | 0.55 | No | Meta Threads profile check |
+| **Tumblr** | 0.50 | No | Blog profile check |
+| **Snapchat** | 0.50 | No | Public profile check |
+| **Imgur** | 0.50 | No | Image hosting user profiles |
+| **ASKfm** | 0.40 | No | Q&A profile check |
+
+### Video (5 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **YouTube** | 0.70 | No | Channel profile check |
+| **TikTok** | 0.60 | No | User profile check |
+| **Twitch** | 0.60 | No | Streamer profile check |
+| **Vimeo** | 0.45 | No | Video creator profiles |
+| **Dailymotion** | 0.40 | No | Video creator profiles |
+
+### Creative (11 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **Medium** | 0.65 | No | Blog/writing profiles |
+| **Substack** | 0.60 | No | Newsletter profiles |
+| **WordPress** | 0.55 | No | Blog profiles |
+| **Patreon** | 0.55 | No | Creator page check |
+| **Pinterest** | 0.50 | No | Profile check |
+| **Dribbble** | 0.50 | No | Design portfolio check |
+| **Behance** | 0.50 | No | Creative portfolio check |
+| **Buy Me a Coffee** | 0.50 | No | Creator page check |
+| **DeviantArt** | 0.45 | No | Art profile check |
+| **Wattpad** | 0.40 | No | Writing platform profiles |
+| **Newgrounds** | 0.40 | No | Creative community profiles |
+
+### Music (3 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **SoundCloud** | 0.55 | No | Music creator profiles |
+| **Spotify** | 0.55 | No | User profiles |
+| **Mixcloud** | 0.40 | No | DJ/music profiles |
+
+### Gaming (5 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **Steam** | 0.60 | No | Community profile check |
+| **Roblox** | 0.50 | No | User search API |
+| **Xbox Live** | 0.45 | No | Gamertag profiles |
+| **Chess.com** | 0.45 | No | Player API, ratings |
+| **Lichess** | 0.45 | No | Player API, game history |
+
+### Professional (4 platforms)
+
+| Platform | Weight | Auth | Features |
+|----------|--------|------|----------|
+| **Trello** | 0.55 | No | Public member API |
+| **Product Hunt** | 0.55 | No | Maker profiles |
+| **About.me** | 0.50 | No | Personal page check |
+| **SlideShare** | 0.50 | No | Presentation profiles |
+
+### Forum / News (2 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
 | **HackerNews** | 0.80 | No | Firebase API, submission history, karma |
-| **Twitter/X** | 0.78 | Optional | Profile check, metadata extraction |
-| **Reddit** | 0.70 | No | JSON API, account age, karma |
-| **LinkedIn** | 0.65 | No | Basic profile check (anti-scraping limits) |
+| **Lobsters** | 0.65 | No | JSON API, karma, about |
+| **Quora** | 0.50 | No | Q&A profile check |
 
-### Tier 3: Lower Reliability (<0.65 weight)
+### Other (2 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
-| **Instagram** | 0.60 | No | Profile check, follower count |
-| **Mastodon** | 0.55 | No | WebFinger lookup, ActivityPub |
+| **Gravatar** | 0.60 | No | Email identity linking |
+| **Linktree** | 0.55 | No | Link aggregator profiles |
 
 ---
 

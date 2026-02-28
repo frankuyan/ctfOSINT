@@ -140,12 +140,17 @@ ctf:
 ### Default CTF Priority
 
 ```
-1. Pastebin   - Flag leaks, code pastes
-2. GitHub     - Commit history, gists
-3. Keybase    - Cross-platform links
-4. HackerNews - Tech profiles
-5. Twitter    - Public statements
-6. Reddit     - Discussion history
+ 1. Pastebin     - Flag leaks, code pastes
+ 2. GitHub       - Commit history, email leaks
+ 3. GitHub Gist  - Code snippets, hidden flags
+ 4. Keybase      - Cross-platform links, PGP keys
+ 5. HackerNews   - Tech profiles
+ 6. TryHackMe    - CTF platform profiles
+ 7. Hack The Box - CTF platform profiles
+ 8. HackerOne    - Bug bounty profiles
+ 9. GitLab       - Repos, project search
+10. Bitbucket    - Repos, team info
+11. Codeberg     - Alternative git hosting
 ```
 
 ### Competition-Specific Tuning

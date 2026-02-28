@@ -89,20 +89,91 @@ platforms:
     priority_weight: 0.65
 ```
 
-### All Built-in Platforms
+### All Built-in Platforms (70 total)
+
+#### Tier 1: High Priority (>0.80 weight)
 
 | Platform | Default Weight | Rate Limit | Auth Required |
 |----------|---------------|------------|---------------|
 | github | 0.92 | 30/min | Optional |
-| gitlab | 0.85 | 20/min | Optional |
-| twitter | 0.78 | 5/min | Optional |
-| reddit | 0.70 | 10/min | No |
-| linkedin | 0.65 | 2/min | No |
-| instagram | 0.60 | 3/min | No |
-| mastodon | 0.55 | 10/min | No |
-| hackernews | 0.80 | 10/min | No |
+| gist | 0.88 | 10/min | Optional |
 | keybase | 0.88 | 10/min | No |
+| gitlab | 0.85 | 20/min | Optional |
 | pastebin | 0.85 | 5/min | No |
+| tryhackme | 0.85 | 5/min | No |
+| hackthebox | 0.85 | 3/min | No |
+| hackernews | 0.80 | 10/min | No |
+| bitbucket | 0.80 | 10/min | No |
+
+#### Tier 2: Medium Priority (0.60-0.80 weight)
+
+| Platform | Default Weight | Rate Limit | Auth Required |
+|----------|---------------|------------|---------------|
+| twitter | 0.78 | 5/min | Optional |
+| dockerhub | 0.78 | 10/min | No |
+| npm | 0.75 | 10/min | No |
+| pypi | 0.75 | 10/min | No |
+| stackoverflow | 0.75 | 5/min | No |
+| hackerone | 0.72 | 3/min | No |
+| reddit | 0.70 | 10/min | No |
+| devto | 0.70 | 10/min | No |
+| gitea | 0.70 | 10/min | No |
+| youtube | 0.70 | 5/min | No |
+| linkedin | 0.65 | 2/min | No |
+| medium | 0.65 | 5/min | No |
+| rubygems | 0.65 | 10/min | No |
+| cratesio | 0.65 | 10/min | No |
+| kaggle | 0.65 | 5/min | No |
+| lobsters | 0.65 | 5/min | No |
+| telegram | 0.65 | 3/min | No |
+| instagram | 0.60 | 3/min | No |
+| bluesky | 0.60 | 5/min | No |
+| codepen | 0.60 | 5/min | No |
+| leetcode | 0.60 | 5/min | No |
+| codeforces | 0.60 | 5/min | No |
+| hashnode | 0.60 | 5/min | No |
+| tiktok | 0.60 | 3/min | No |
+| twitch | 0.60 | 5/min | No |
+| substack | 0.60 | 5/min | No |
+| steam | 0.60 | 5/min | No |
+| gravatar | 0.60 | 10/min | No |
+
+#### Tier 3: Standard Priority (0.40-0.60 weight)
+
+| Platform | Default Weight | Rate Limit | Auth Required |
+|----------|---------------|------------|---------------|
+| mastodon | 0.55 | 10/min | No |
+| discord | 0.55 | 2/min | No |
+| threads | 0.55 | 3/min | No |
+| replit | 0.55 | 5/min | No |
+| soundcloud | 0.55 | 5/min | No |
+| spotify | 0.55 | 5/min | No |
+| wordpress | 0.55 | 5/min | No |
+| patreon | 0.55 | 3/min | No |
+| trello | 0.55 | 5/min | No |
+| producthunt | 0.55 | 5/min | No |
+| linktree | 0.55 | 5/min | No |
+| snapchat | 0.50 | 3/min | No |
+| tumblr | 0.50 | 5/min | No |
+| imgur | 0.50 | 5/min | No |
+| pinterest | 0.50 | 3/min | No |
+| dribbble | 0.50 | 5/min | No |
+| behance | 0.50 | 5/min | No |
+| roblox | 0.50 | 5/min | No |
+| aboutme | 0.50 | 5/min | No |
+| slideshare | 0.50 | 5/min | No |
+| quora | 0.50 | 3/min | No |
+| buymeacoffee | 0.50 | 5/min | No |
+| vimeo | 0.45 | 5/min | No |
+| deviantart | 0.45 | 5/min | No |
+| xbox | 0.45 | 3/min | No |
+| chesscom | 0.45 | 5/min | No |
+| lichess | 0.45 | 5/min | No |
+| askfm | 0.40 | 5/min | No |
+| dailymotion | 0.40 | 5/min | No |
+| wattpad | 0.40 | 5/min | No |
+| newgrounds | 0.40 | 5/min | No |
+| mixcloud | 0.40 | 5/min | No |
 
 ---
 
@@ -129,7 +200,7 @@ ml:
 
 ```yaml
 search:
-  max_concurrent: 10           # Max parallel requests (1-100)
+  max_concurrent: 25           # Max parallel requests (1-100)
   request_timeout: 15          # Seconds per request (1-120)
   default_rate_limit: 5.0      # Global requests/second (0.1-100)
   retry_attempts: 3            # Retry failed requests (0-10)

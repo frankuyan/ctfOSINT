@@ -101,7 +101,7 @@ class TestSearchConfig:
 
     def test_defaults(self):
         sc = SearchConfig()
-        assert sc.max_concurrent == 10
+        assert sc.max_concurrent == 25
         assert sc.request_timeout == 15.0
         assert sc.retry_attempts == 3
         assert len(sc.user_agents) >= 1
