@@ -138,9 +138,12 @@ class Orchestrator:
         
         timeout = aiohttp.ClientTimeout(total=self.timeout)
         
+        default_headers = {"User-Agent": self._get_user_agent()}
+
         return aiohttp.ClientSession(
             connector=connector,
             timeout=timeout,
+            headers=default_headers,
         )
     
     async def _rate_limit(self, platform_name: str, rate_limit: float) -> None:
@@ -189,10 +192,12 @@ class Orchestrator:
                 await self._rate_limit(platform.name, rate_limit)
 
                 try:
-                    # Create per-request headers to avoid race condition
-                    # on shared session (don't mutate session.headers)
-                    request_headers = {"User-Agent": self._get_user_agent()}
                     result: PlatformResult = await platform.check_username(username, session)
+
+                    # Carry raw_response through to metadata so flag scanning can find it
+                    metadata = dict(result.metadata)
+                    if result.raw_response:
+                        metadata["_raw_response"] = result.raw_response
 
                     return SearchResult(
                         username=username,
@@ -201,7 +206,7 @@ class Orchestrator:
                         url=result.url,
                         confidence=result.confidence,
                         response_time=result.response_time,
-                        metadata=result.metadata,
+                        metadata=metadata,
                         error=result.error,
                     )
 
@@ -313,14 +318,20 @@ class Orchestrator:
                 
                 if result.exists:
                     results.found_count += 1
-                    
-                    # Check for flags in metadata
-                    if compiled_patterns and result.metadata:
+
+                # Scan for flags in metadata values, URL, and raw response
+                if compiled_patterns:
+                    texts_to_scan: list[str] = []
+                    if result.url:
+                        texts_to_scan.append(result.url)
+                    if result.metadata:
                         for field_value in result.metadata.values():
                             if isinstance(field_value, str):
-                                for pattern in compiled_patterns:
-                                    matches = pattern.findall(field_value)
-                                    results.flags_found.extend(matches)
+                                texts_to_scan.append(field_value)
+                    for text in texts_to_scan:
+                        for pattern in compiled_patterns:
+                            matches = pattern.findall(text)
+                            results.flags_found.extend(matches)
                 
                 # Callback
                 if callback:
