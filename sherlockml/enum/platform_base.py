@@ -207,6 +207,7 @@ class HTTPCheckPlatform(BasePlatform):
     # Common text patterns indicating a profile was NOT found (soft 404 detection).
     # Subclasses can override with platform-specific patterns.
     not_found_text_patterns: list[str] = [
+        # English
         r"(?i)page\s+not\s+found",
         r"(?i)user\s+not\s+found",
         r"(?i)profile\s+not\s+found",
@@ -215,7 +216,55 @@ class HTTPCheckPlatform(BasePlatform):
         r"(?i)404\s*[-–—:]\s*not\s+found",
         r"(?i)sorry,\s+nobody\s+.*that\s+name",
         r"(?i)the\s+page\s+you\s+(were|are)\s+looking\s+for",
+        # Chinese
+        r"该用户不存在",
+        r"页面未找到",
+        r"用户不存在",
+        r"此页面不存在",
+        # Russian
+        r"Страница не найдена",
+        r"Пользователь не найден",
+        r"не существует",
+        # Japanese
+        r"ページが見つかりません",
+        r"ユーザーが見つかりません",
+        # Korean
+        r"페이지를 찾을 수 없습니다",
+        r"사용자를 찾을 수 없습니다",
+        # Spanish
+        r"(?i)página\s+no\s+encontrada",
+        r"(?i)usuario\s+no\s+encontrado",
+        # Portuguese
+        r"(?i)página\s+não\s+encontrada",
+        r"(?i)usuário\s+não\s+encontrado",
+        # French
+        r"(?i)page\s+non\s+trouvée",
+        r"(?i)utilisateur\s+non\s+trouvé",
+        # German
+        r"(?i)seite\s+nicht\s+gefunden",
+        r"(?i)benutzer\s+nicht\s+gefunden",
     ]
+
+    # Patterns indicating login walls, CAPTCHAs, or access restrictions.
+    _login_wall_patterns: list[str] = [
+        r"(?i)sign\s*in",
+        r"(?i)log\s*in\s+to\s+continue",
+        r"(?i)captcha",
+        r"(?i)verify\s+you.?re\s+human",
+        r"(?i)access\s+denied",
+        r"(?i)rate\s+limit",
+    ]
+
+    # Generic error page title indicators.
+    _error_title_patterns: list[str] = [
+        r"(?i)\b404\b",
+        r"(?i)\bnot\s+found\b",
+        r"(?i)\berror\b",
+        r"(?i)\bredirecting\b",
+    ]
+
+    # Minimum meaningful text content length (chars after stripping HTML tags).
+    _min_content_length: int = 500
 
     # Max bytes to read from response body (avoid downloading huge pages)
     _max_body_bytes: int = 512 * 1024  # 512 KB
@@ -273,6 +322,56 @@ class HTTPCheckPlatform(BasePlatform):
                             metadata=metadata,
                         )
 
+                    # Check for redirect to homepage (profile doesn't exist)
+                    final_url = str(response.url)
+                    if self._is_redirect_to_home(final_url):
+                        metadata["redirect_detected"] = True
+                        return PlatformResult(
+                            exists=False,
+                            url=None,
+                            confidence=0.8,
+                            response_time=response_time,
+                            raw_response=body or None,
+                            metadata=metadata,
+                        )
+
+                    # Check for empty/stub pages
+                    if body and self._is_empty_page(body):
+                        metadata["empty_page"] = True
+                        return PlatformResult(
+                            exists=False,
+                            url=None,
+                            confidence=0.7,
+                            response_time=response_time,
+                            raw_response=body,
+                            metadata=metadata,
+                        )
+
+                    # Check for login wall / CAPTCHA
+                    if body and self._is_login_wall(body):
+                        metadata["login_wall"] = True
+                        return PlatformResult(
+                            exists=False,
+                            url=None,
+                            confidence=0.5,
+                            response_time=response_time,
+                            raw_response=body,
+                            metadata=metadata,
+                            error="Login wall or CAPTCHA detected",
+                        )
+
+                    # Check for generic error title
+                    if metadata.get("title") and self._is_error_title(metadata["title"]):
+                        metadata["error_title"] = True
+                        return PlatformResult(
+                            exists=False,
+                            url=None,
+                            confidence=0.75,
+                            response_time=response_time,
+                            raw_response=body or None,
+                            metadata=metadata,
+                        )
+
                     return PlatformResult(
                         exists=True,
                         url=url,
@@ -311,5 +410,38 @@ class HTTPCheckPlatform(BasePlatform):
         """Check if a 200-status response body is actually a 'not found' page."""
         for pattern in self.not_found_text_patterns:
             if re.search(pattern, body):
+                return True
+        return False
+
+    @staticmethod
+    def _strip_html_tags(html: str) -> str:
+        """Remove HTML tags and return plain text content."""
+        text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _is_empty_page(self, body: str) -> bool:
+        """Check if the page has too little meaningful content to be a real profile."""
+        text = self._strip_html_tags(body)
+        return len(text) < self._min_content_length
+
+    def _is_redirect_to_home(self, response_url: str) -> bool:
+        """Check if the response URL is the platform homepage (redirect occurred)."""
+        normalized = response_url.rstrip("/")
+        base = self.base_url.rstrip("/")
+        return normalized == base or normalized == base + "/index.html"
+
+    def _is_login_wall(self, body: str) -> bool:
+        """Check if the page is a login wall or CAPTCHA challenge."""
+        matches = sum(1 for p in self._login_wall_patterns if re.search(p, body))
+        # Require at least 2 matches to avoid false positives on pages that
+        # legitimately mention "sign in" in a navbar.
+        return matches >= 2
+
+    def _is_error_title(self, title: str) -> bool:
+        """Check if the page title indicates a generic error page."""
+        for pattern in self._error_title_patterns:
+            if re.search(pattern, title):
                 return True
         return False

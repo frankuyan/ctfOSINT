@@ -199,12 +199,21 @@ class Orchestrator:
                     if result.raw_response:
                         metadata["_raw_response"] = result.raw_response
 
+                    confidence = result.confidence
+                    exists = result.exists
+
+                    # Lower confidence for borderline positive results
+                    if exists and result.raw_response:
+                        confidence = self._adjust_confidence(
+                            confidence, result.raw_response, username, metadata,
+                        )
+
                     return SearchResult(
                         username=username,
                         platform=platform.name,
-                        exists=result.exists,
+                        exists=exists,
                         url=result.url,
-                        confidence=result.confidence,
+                        confidence=confidence,
                         response_time=result.response_time,
                         metadata=metadata,
                         error=result.error,
@@ -240,6 +249,42 @@ class Orchestrator:
                 error="Max retries exceeded",
             )
     
+    @staticmethod
+    def _adjust_confidence(
+        confidence: float,
+        body: str,
+        username: str,
+        metadata: dict[str, Any],
+    ) -> float:
+        """Lower confidence for borderline positive results.
+
+        Checks whether the response body looks like a real profile page.
+        If the body is very short or lacks typical profile indicators,
+        the confidence is reduced and the result is tagged.
+        """
+        import re as _re
+
+        # Strip HTML to get plain text length
+        text = _re.sub(r"<[^>]+>", " ", body)
+        text = _re.sub(r"\s+", " ", text).strip()
+
+        has_image = bool(_re.search(r"<img\s", body, _re.IGNORECASE))
+        has_username_mention = username.lower() in body.lower()
+
+        penalties = 0
+        if len(text) < 800:
+            penalties += 1
+        if not has_image:
+            penalties += 1
+        if not has_username_mention:
+            penalties += 1
+
+        if penalties >= 2:
+            metadata["low_confidence"] = True
+            return min(confidence, 0.5 + (0.05 * (3 - penalties)))
+
+        return confidence
+
     async def search(
         self,
         usernames: list[str],
