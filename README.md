@@ -8,6 +8,8 @@
 ## Features
 
 - 🔍 **Smart Enumeration**: Search 93 built-in platforms with async parallelism
+- 🌍 **International Coverage**: Chinese, Russian, Japanese, Korean, and European platforms
+- 🛡️ **Advanced False Positive Detection**: Soft 404s, empty pages, login walls, redirect detection, and multilingual "not found" patterns
 - 🧠 **ML-Powered**: RAG for semantic search, RL for platform prioritization
 - 🚩 **CTF-Optimized**: Flag detection, fast-fail mode, writeup generation
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
@@ -110,8 +112,9 @@ proxy:
 ```
 sherlockml/
 ├── enum/           # Enumeration engine
+│   ├── platform_base.py  # Platform interface + false positive detection
 │   ├── variants.py     # Username generation
-│   ├── orchestrator.py # Async search coordination
+│   ├── orchestrator.py # Async search + confidence adjustment
 │   └── registry.py     # Platform plugin system
 ├── ml/             # Machine learning
 │   ├── rag_pipeline.py # Vector search (ChromaDB)

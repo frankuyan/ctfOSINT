@@ -4,7 +4,7 @@ SherlockML includes **93 built-in platforms** across 12 categories (including in
 
 ## Built-in Platforms
 
-### Code / Developer (22 platforms)
+### Code / Developer (27 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -43,7 +43,7 @@ SherlockML includes **93 built-in platforms** across 12 categories (including in
 | **TryHackMe** | 0.85 | No | CTF platform user profiles |
 | **Hack The Box** | 0.85 | No | CTF platform user profiles |
 
-### Social (10 platforms)
+### Social (15 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -128,7 +128,7 @@ SherlockML includes **93 built-in platforms** across 12 categories (including in
 | **Freelancer** | 0.45 | No | Freelance marketplace profiles |
 | **Fiverr** | 0.45 | No | Freelance marketplace profiles |
 
-### Forum / News (4 platforms)
+### Forum / News (6 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -403,6 +403,28 @@ class SimpleService(HTTPCheckPlatform):
 ```
 
 This automatically handles requests, timing, and result creation.
+
+#### Built-in False Positive Detection
+
+`HTTPCheckPlatform` includes multiple layers of false positive detection that run automatically:
+
+1. **Soft 404 detection** - Regex patterns matching "not found" text in 9 languages (English, Chinese, Russian, Japanese, Korean, Spanish, Portuguese, French, German)
+2. **Empty page detection** - Strips HTML tags and checks if meaningful text content is below 500 characters
+3. **Redirect-to-homepage detection** - Detects when a platform redirects non-existent profiles to its homepage
+4. **Login wall / CAPTCHA detection** - Identifies pages that are login walls or CAPTCHA challenges (requires 2+ pattern matches to avoid false positives from navbars)
+5. **Error title detection** - Checks if the page `<title>` contains generic error indicators ("404", "Not Found", "Error", "Redirecting")
+
+The orchestrator also applies **low-confidence tagging**: positive results that lack typical profile indicators (images, username mentions, sufficient text) get their confidence reduced to 0.5-0.55 and are tagged with `low_confidence: true` in metadata.
+
+Subclasses can extend or override `not_found_text_patterns` for platform-specific patterns:
+
+```python
+class MyPlatform(HTTPCheckPlatform):
+    not_found_text_patterns = [
+        *HTTPCheckPlatform.not_found_text_patterns,
+        r"custom not found pattern",
+    ]
+```
 
 ### Plugin Discovery
 

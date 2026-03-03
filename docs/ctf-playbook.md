@@ -366,6 +366,8 @@ sherlockml search target -o results --format both
 
 ### False Positives
 
-1. Check confidence scores in JSON
-2. Verify profiles manually
-3. Cross-reference metadata
+SherlockML automatically filters many false positives (soft 404s, empty pages, login walls, redirects, error titles) with multilingual "not found" detection in 9 languages. For remaining borderline results:
+
+1. Check confidence scores in JSON - results with `confidence < 0.7` or `low_confidence: true` in metadata are suspect
+2. Verify profiles manually by opening the URL
+3. Cross-reference metadata across platforms

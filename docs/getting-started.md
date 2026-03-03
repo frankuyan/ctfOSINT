@@ -113,7 +113,7 @@ sherlockml search johndoe --proxy socks5://127.0.0.1:9050
 SherlockML v1.0.0
 Searching for johndoe (15 variants)
 
-Platforms: 70 enabled
+Platforms: 93 enabled
   ✓ github: https://github.com/johndoe
   ✓ twitter: https://twitter.com/johndoe
   ✓ reddit: https://reddit.com/u/johndoe
@@ -121,7 +121,7 @@ Platforms: 70 enabled
   ...
 
 Results:
-  Platforms checked: 70
+  Platforms checked: 93
   Profiles found: 8
   Flags found: 0
   Time: 12.4s
