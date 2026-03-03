@@ -89,7 +89,7 @@ platforms:
     priority_weight: 0.65
 ```
 
-### All Built-in Platforms (70 total)
+### All Built-in Platforms (93 total)
 
 #### Tier 1: High Priority (>0.80 weight)
 
@@ -137,6 +137,7 @@ platforms:
 | substack | 0.60 | 5/min | No |
 | steam | 0.60 | 5/min | No |
 | gravatar | 0.60 | 10/min | No |
+| gitee | 0.60 | 60/min | No |
 
 #### Tier 3: Standard Priority (0.40-0.60 weight)
 
@@ -174,6 +175,28 @@ platforms:
 | wattpad | 0.40 | 5/min | No |
 | newgrounds | 0.40 | 5/min | No |
 | mixcloud | 0.40 | 5/min | No |
+| csdn | 0.55 | 30/min | No |
+| habr | 0.55 | 30/min | No |
+| qiita | 0.55 | 60/min | No |
+| codewars | 0.55 | 60/min | No |
+| hackerrank | 0.55 | 30/min | No |
+| weibo | 0.50 | 30/min | No |
+| vk | 0.50 | 30/min | No |
+| bilibili | 0.50 | 30/min | No |
+| zhihu | 0.45 | 30/min | No |
+| note_jp | 0.45 | 30/min | No |
+| naver_blog | 0.45 | 30/min | No |
+| lastfm | 0.45 | 30/min | No |
+| bandcamp | 0.45 | 30/min | No |
+| xing | 0.45 | 30/min | No |
+| freelancer | 0.45 | 30/min | No |
+| fiverr | 0.45 | 30/min | No |
+| myanimelist | 0.40 | 30/min | No |
+| anilist | 0.40 | 60/min | No |
+| osu | 0.40 | 30/min | No |
+| pikabu | 0.40 | 30/min | No |
+| baidu_tieba | 0.40 | 20/min | No |
+| douyin | 0.40 | 20/min | No |
 
 ---
 

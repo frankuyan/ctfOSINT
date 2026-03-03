@@ -48,11 +48,11 @@ sherlockml/
 │   ├── registry.py       # Plugin system
 │   └── orchestrator.py   # Async search coordination
 │
-├── platforms/            # Built-in Platforms (70)
+├── platforms/            # Built-in Platforms (93)
 │   ├── github.py         # Social, Code, Video, Gaming,
 │   ├── twitter.py        # Creative, Music, Professional,
 │   ├── reddit.py         # Forum, CTF/Security, and more
-│   └── ... (70 platforms across 12 categories)
+│   └── ... (93 platforms across 12 categories, including international)
 │
 ├── ml/                   # Machine Learning
 │   ├── rag_pipeline.py   # Vector search

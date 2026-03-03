@@ -87,6 +87,39 @@ from sherlockml.platforms.producthunt import ProductHuntPlatform
 from sherlockml.platforms.quora import QuoraPlatform
 from sherlockml.platforms.lobsters import LobstersPlatform
 
+# --- Chinese ---
+from sherlockml.platforms.weibo import WeiboPlatform
+from sherlockml.platforms.zhihu import ZhihuPlatform
+from sherlockml.platforms.bilibili import BilibiliPlatform
+from sherlockml.platforms.douyin import DouyinPlatform
+from sherlockml.platforms.gitee import GiteePlatform
+from sherlockml.platforms.csdn import CSDNPlatform
+from sherlockml.platforms.baidu_tieba import BaiduTiebaPlatform
+
+# --- Russian ---
+from sherlockml.platforms.vk import VKPlatform
+from sherlockml.platforms.habr import HabrPlatform
+from sherlockml.platforms.pikabu import PikabuPlatform
+
+# --- Japanese ---
+from sherlockml.platforms.qiita import QiitaPlatform
+from sherlockml.platforms.note_jp import NoteJPPlatform
+
+# --- Korean ---
+from sherlockml.platforms.naver_blog import NaverBlogPlatform
+
+# --- European / Other International ---
+from sherlockml.platforms.xing import XingPlatform
+from sherlockml.platforms.freelancer import FreelancerPlatform
+from sherlockml.platforms.fiverr import FiverrPlatform
+from sherlockml.platforms.osu import OsuPlatform
+from sherlockml.platforms.anilist import AniListPlatform
+from sherlockml.platforms.myanimelist import MyAnimeListPlatform
+from sherlockml.platforms.last_fm import LastFmPlatform
+from sherlockml.platforms.bandcamp import BandcampPlatform
+from sherlockml.platforms.codewars import CodewarsPlatform
+from sherlockml.platforms.hackerrank import HackerRankPlatform
+
 # --- Other ---
 from sherlockml.platforms.gravatar import GravatarPlatform
 from sherlockml.platforms.linktree import LinktreePlatform
@@ -169,6 +202,34 @@ __all__ = [
     # Forum / News
     "QuoraPlatform",
     "LobstersPlatform",
+    # Chinese
+    "WeiboPlatform",
+    "ZhihuPlatform",
+    "BilibiliPlatform",
+    "DouyinPlatform",
+    "GiteePlatform",
+    "CSDNPlatform",
+    "BaiduTiebaPlatform",
+    # Russian
+    "VKPlatform",
+    "HabrPlatform",
+    "PikabuPlatform",
+    # Japanese
+    "QiitaPlatform",
+    "NoteJPPlatform",
+    # Korean
+    "NaverBlogPlatform",
+    # European / Other International
+    "XingPlatform",
+    "FreelancerPlatform",
+    "FiverrPlatform",
+    "OsuPlatform",
+    "AniListPlatform",
+    "MyAnimeListPlatform",
+    "LastFmPlatform",
+    "BandcampPlatform",
+    "CodewarsPlatform",
+    "HackerRankPlatform",
     # Other
     "GravatarPlatform",
     "LinktreePlatform",

@@ -1,10 +1,10 @@
 # Platform Plugins Guide
 
-SherlockML includes **70 built-in platforms** across 12 categories and supports custom plugins via the plugin system.
+SherlockML includes **93 built-in platforms** across 12 categories (including international platforms for Chinese, Russian, Japanese, and Korean services) and supports custom plugins via the plugin system.
 
 ## Built-in Platforms
 
-### Code / Developer (17 platforms)
+### Code / Developer (22 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -29,6 +29,12 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **LeetCode** | 0.60 | No | Competitive programming profiles |
 | **Codeforces** | 0.60 | No | Competitive programming API, ratings |
 | **Replit** | 0.55 | No | Online IDE profiles |
+| **Gitee** | 0.60 | No | Chinese GitHub, code hosting |
+| **CSDN** | 0.55 | No | Chinese developer blog/forum |
+| **Habr** | 0.55 | No | Russian developer blog/news |
+| **Qiita** | 0.55 | No | Japanese developer blog |
+| **Codewars** | 0.55 | No | Coding challenge profiles |
+| **HackerRank** | 0.55 | No | Coding challenge profiles |
 
 ### CTF / Security (2 platforms)
 
@@ -37,7 +43,7 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **TryHackMe** | 0.85 | No | CTF platform user profiles |
 | **Hack The Box** | 0.85 | No | CTF platform user profiles |
 
-### Social (8 platforms)
+### Social (10 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -54,8 +60,10 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **Snapchat** | 0.50 | No | Public profile check |
 | **Imgur** | 0.50 | No | Image hosting user profiles |
 | **ASKfm** | 0.40 | No | Q&A profile check |
+| **Weibo** | 0.50 | No | Chinese social media |
+| **VKontakte** | 0.50 | No | Russian social network |
 
-### Video (5 platforms)
+### Video (7 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -64,8 +72,10 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **Twitch** | 0.60 | No | Streamer profile check |
 | **Vimeo** | 0.45 | No | Video creator profiles |
 | **Dailymotion** | 0.40 | No | Video creator profiles |
+| **Bilibili** | 0.50 | No | Chinese video platform (API) |
+| **Douyin** | 0.40 | No | TikTok China |
 
-### Creative (11 platforms)
+### Creative (13 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -80,16 +90,20 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **DeviantArt** | 0.45 | No | Art profile check |
 | **Wattpad** | 0.40 | No | Writing platform profiles |
 | **Newgrounds** | 0.40 | No | Creative community profiles |
+| **Note (JP)** | 0.45 | No | Japanese blog/creative platform |
+| **Naver Blog** | 0.45 | No | Korean blog platform |
 
-### Music (3 platforms)
+### Music (5 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
 | **SoundCloud** | 0.55 | No | Music creator profiles |
 | **Spotify** | 0.55 | No | User profiles |
 | **Mixcloud** | 0.40 | No | DJ/music profiles |
+| **Last.fm** | 0.45 | No | Music listening profiles |
+| **Bandcamp** | 0.45 | No | Music creator/label profiles |
 
-### Gaming (5 platforms)
+### Gaming (8 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -98,8 +112,11 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **Xbox Live** | 0.45 | No | Gamertag profiles |
 | **Chess.com** | 0.45 | No | Player API, ratings |
 | **Lichess** | 0.45 | No | Player API, game history |
+| **osu!** | 0.40 | No | Rhythm game profiles |
+| **AniList** | 0.40 | No | Anime/manga tracker profiles |
+| **MyAnimeList** | 0.40 | No | Anime tracker profiles |
 
-### Professional (4 platforms)
+### Professional (7 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -107,14 +124,20 @@ SherlockML includes **70 built-in platforms** across 12 categories and supports 
 | **Product Hunt** | 0.55 | No | Maker profiles |
 | **About.me** | 0.50 | No | Personal page check |
 | **SlideShare** | 0.50 | No | Presentation profiles |
+| **XING** | 0.45 | No | German professional network |
+| **Freelancer** | 0.45 | No | Freelance marketplace profiles |
+| **Fiverr** | 0.45 | No | Freelance marketplace profiles |
 
-### Forum / News (2 platforms)
+### Forum / News (4 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
 | **HackerNews** | 0.80 | No | Firebase API, submission history, karma |
 | **Lobsters** | 0.65 | No | JSON API, karma, about |
 | **Quora** | 0.50 | No | Q&A profile check |
+| **Zhihu** | 0.45 | No | Chinese Q&A platform |
+| **Pikabu** | 0.40 | No | Russian social/forum |
+| **Baidu Tieba** | 0.40 | No | Chinese forum |
 
 ### Other (2 platforms)
 
