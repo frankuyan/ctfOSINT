@@ -188,7 +188,8 @@ for result in results.results:
     print(result.username)      # Searched username
     print(result.exists)        # Profile exists?
     print(result.url)           # Profile URL
-    print(result.metadata)      # Additional data
+    print(result.metadata)      # Additional data (may include low_confidence, redirect_detected, etc.)
+    print(result.confidence)    # 0.0-1.0 (results with low_confidence=True in metadata scored 0.5-0.55)
     print(result.response_time) # Request time
     print(result.error)         # Error if any
 ```

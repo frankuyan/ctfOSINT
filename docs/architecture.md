@@ -44,9 +44,9 @@ sherlockml/
 │
 ├── enum/                 # Enumeration Engine
 │   ├── variants.py       # Username generation
-│   ├── platform_base.py  # Abstract platform interface
+│   ├── platform_base.py  # Abstract platform interface + false positive detection
 │   ├── registry.py       # Plugin system
-│   └── orchestrator.py   # Async search coordination
+│   └── orchestrator.py   # Async search + confidence adjustment
 │
 ├── platforms/            # Built-in Platforms (93)
 │   ├── github.py         # Social, Code, Video, Gaming,
@@ -121,6 +121,7 @@ Manages concurrent async searches with:
 - Proxy support (SOCKS5, Tor)
 - Timeout handling
 - Flag detection
+- Low-confidence tagging for borderline positive results (checks for profile indicators like images, username mentions, and sufficient text content)
 
 ```python
 from sherlockml.enum.orchestrator import Orchestrator
@@ -247,6 +248,8 @@ Social graph analysis:
    └── Timeout handling
 
 5. Result Processing
+   ├── False positive filtering (soft 404, empty pages, redirects, login walls)
+   ├── Low-confidence tagging for borderline results
    ├── NER extraction
    ├── Flag detection
    └── Confidence scoring
