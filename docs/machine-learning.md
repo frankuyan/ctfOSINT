@@ -26,7 +26,17 @@ SherlockML addresses this by sending the raw HTML of discovered profiles to a La
 1. **Extraction:** Before stripping the page content, SherlockML extracts structural JSON (`application/ld+json` or `application/json`) from `<script>` tags, which is heavily used by SPAs to store profile data.
 2. **Text Normalization:** It removes styling and non-relevant scripts, converting structural HTML into a plaintext format with structural hints.
 3. **LLM Evaluation:** The extracted structured data and plaintext are sent to the LLM.
-4. **Robust Parsing:** The LLM responds with a JSON verdict (`real`, `empty`, or `suspicious`) along with a confidence score and a brief explanation. The result is parsed using a robust regex engine capable of handling nested JSON and markdown fences.
+4. **OSINT Extraction:** The LLM extracts relevant details from the page — bio, display name, join date, activity level, external links, and other notable info (location, email, interests).
+5. **Robust Parsing:** The LLM responds with a JSON verdict (`real`, `empty`, or `suspicious`) along with a confidence score, explanation, and extracted OSINT fields. The result is parsed using a robust regex engine capable of handling nested JSON and markdown fences.
+
+### Output
+
+Verification results are displayed in two separate tables:
+
+- **Verified Profiles** (green border): Real and suspicious accounts shown with full OSINT details — display name, bio, join date, activity summary, external links, and notable info.
+- **Empty / Default Pages** (dimmed): Compact list of platforms that returned empty, suspended, or default pages.
+
+For platforms that use JSON APIs internally (e.g., Reddit), SherlockML fetches the profile page separately using browser-like headers (`User-Agent`, `Sec-Fetch-*`, etc.) to avoid being blocked. Any fetch failures are reported rather than silently skipped.
 
 ### Usage
 

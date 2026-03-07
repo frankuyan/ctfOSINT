@@ -193,17 +193,69 @@ async def search(
                 "[dim]Set llm.api_key in config, SHERLOCKML_LLM_KEY env var, or --llm-key flag.[/dim]"
             )
         else:
-            # Collect found results that have raw HTML
+            # Collect found results; fetch HTML for API-based platforms that lack it
             to_verify = []
+            needs_fetch = []
             for r in results.found_results:
+                if not r.url:
+                    continue
                 raw = r.metadata.get("_raw_response", "")
-                if raw and r.url:
+                if raw:
                     to_verify.append({
                         "platform": r.platform,
                         "url": r.url,
                         "username": r.username,
                         "raw_html": raw,
                     })
+                else:
+                    needs_fetch.append(r)
+
+            # Fetch profile pages for results that used JSON APIs
+            if needs_fetch:
+                import aiohttp as _aiohttp
+                from sherlockml.enum.platform_base import DEFAULT_USER_AGENT
+
+                console.print()
+                console.print(
+                    f"[dim]Fetching {len(needs_fetch)} profile pages for verification...[/dim]"
+                )
+                timeout = _aiohttp.ClientTimeout(total=15)
+                fetch_headers = {
+                    "User-Agent": DEFAULT_USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Connection": "keep-alive",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                    "Sec-Fetch-User": "?1",
+                    "Upgrade-Insecure-Requests": "1",
+                }
+                async with _aiohttp.ClientSession(timeout=timeout) as fetch_session:
+                    for r in needs_fetch:
+                        try:
+                            async with fetch_session.get(
+                                r.url,
+                                headers=fetch_headers,
+                                allow_redirects=True,
+                            ) as resp:
+                                if resp.status == 200:
+                                    body = await resp.text(errors="replace")
+                                    to_verify.append({
+                                        "platform": r.platform,
+                                        "url": r.url,
+                                        "username": r.username,
+                                        "raw_html": body,
+                                    })
+                                else:
+                                    console.print(
+                                        f"  [dim yellow]Could not fetch {r.platform} (HTTP {resp.status})[/dim yellow]"
+                                    )
+                        except Exception as e:
+                            console.print(
+                                f"  [dim yellow]Could not fetch {r.platform}: {e}[/dim yellow]"
+                            )
 
             if to_verify:
                 console.print()
@@ -252,28 +304,77 @@ async def search(
         console.print(f"  [yellow]Suspicious:[/yellow] {suspicious_count}")
         console.print()
 
-        # Detailed verification table
-        vtable = Table(show_header=True, title="Profile Verification")
-        vtable.add_column("Platform", style="cyan")
-        vtable.add_column("Verdict", justify="center")
-        vtable.add_column("Conf.", justify="right")
-        vtable.add_column("Reason")
+        # Separate real/suspicious from empty for display
+        real_results = [v for v in verification_results if v.verdict in ("real", "suspicious")]
+        empty_results = [v for v in verification_results if v.verdict == "empty"]
 
-        for v in sorted(verification_results, key=lambda x: x.verdict):
-            if v.verdict == "real":
-                verdict_str = "[green]REAL[/green]"
-            elif v.verdict == "empty":
-                verdict_str = "[red]EMPTY[/red]"
-            else:
-                verdict_str = "[yellow]SUSPICIOUS[/yellow]"
+        # Detailed table for real/suspicious profiles with OSINT info
+        if real_results:
+            vtable = Table(
+                show_header=True,
+                title="[bold]Verified Profiles[/bold]",
+                title_style="bold green",
+                border_style="green",
+                show_lines=True,
+                padding=(0, 1),
+            )
+            vtable.add_column("Platform", style="cyan bold", min_width=10)
+            vtable.add_column("Verdict", justify="center", min_width=6)
+            vtable.add_column("Details", min_width=40)
 
-            reason = v.reason[:60] + "..." if len(v.reason) > 60 else v.reason
-            if v.error:
-                reason = f"[red]Error: {v.error[:50]}[/red]"
+            for v in sorted(real_results, key=lambda x: x.confidence, reverse=True):
+                if v.verdict == "real":
+                    verdict_str = f"[green]REAL[/green] [dim]{v.confidence:.0%}[/dim]"
+                else:
+                    verdict_str = f"[yellow]SUS[/yellow] [dim]{v.confidence:.0%}[/dim]"
 
-            vtable.add_row(v.platform, verdict_str, f"{v.confidence:.0%}", reason)
+                # Build rich details block
+                details_parts = []
+                if v.display_name:
+                    details_parts.append(f"[bold]{v.display_name}[/bold]")
+                if v.bio:
+                    bio_text = v.bio[:80] + "..." if len(v.bio) > 80 else v.bio
+                    details_parts.append(f"[italic]{bio_text}[/italic]")
+                if v.join_date:
+                    details_parts.append(f"[dim]Joined:[/dim] {v.join_date}")
+                if v.activity:
+                    details_parts.append(f"[dim]Activity:[/dim] {v.activity}")
+                if v.notable:
+                    details_parts.append(f"[dim]Info:[/dim] {v.notable}")
+                if v.links:
+                    for link in v.links[:3]:
+                        details_parts.append(f"[dim]Link:[/dim] [underline]{link}[/underline]")
+                if v.error:
+                    details_parts.append(f"[red]Error: {v.error[:50]}[/red]")
+                if not details_parts:
+                    reason = v.reason[:80] + "..." if len(v.reason) > 80 else v.reason
+                    details_parts.append(reason)
 
-        console.print(vtable)
+                vtable.add_row(
+                    f"{v.platform}\n[dim]{v.url}[/dim]",
+                    verdict_str,
+                    "\n".join(details_parts),
+                )
+
+            console.print(vtable)
+
+        # Compact table for empty profiles
+        if empty_results:
+            console.print()
+            etable = Table(
+                show_header=True,
+                title="[dim]Empty / Default Pages[/dim]",
+                border_style="dim",
+                padding=(0, 1),
+            )
+            etable.add_column("Platform", style="dim")
+            etable.add_column("Reason", style="dim")
+
+            for v in sorted(empty_results, key=lambda x: x.platform):
+                reason = v.reason[:70] + "..." if len(v.reason) > 70 else v.reason
+                etable.add_row(v.platform, reason)
+
+            console.print(etable)
 
     if results.flags_found:
         console.print()

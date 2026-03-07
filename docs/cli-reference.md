@@ -65,6 +65,7 @@ sherlockml search johndoe --proxy socks5://127.0.0.1:9050
 sherlockml search johndoe -w usernames.txt
 
 # Search and verify profiles with LLM (OpenAI)
+# Shows OSINT details: bio, join date, activity, links, notable info
 sherlockml search johndoe --verify --llm-key sk-...
 
 # Verify with Gemini (set provider in config)
@@ -73,6 +74,10 @@ sherlockml search johndoe --verify --llm-key AIza...
 # Verify using config API key
 sherlockml search johndoe --verify
 ```
+
+When `--verify` is used, results are split into two tables:
+- **Verified Profiles**: Real/suspicious accounts with extracted OSINT details (bio, display name, join date, activity, external links, notable info).
+- **Empty / Default Pages**: Compact list of platforms with no real content.
 
 ---
 

@@ -25,18 +25,28 @@ Analyze the page and determine:
 1. Is this a REAL profile with actual user content (bio, posts, activity)?
 2. Or is this an EMPTY/DEFAULT page (no real content, placeholder, suspended, \
 deleted, or generic template)?
+3. Extract any useful OSINT details you can find on the page.
 
 Respond with ONLY a JSON object (no markdown fences):
 {
   "verdict": "real" | "empty" | "suspicious",
   "confidence": 0.0-1.0,
-  "reason": "brief explanation"
+  "reason": "brief explanation",
+  "bio": "user bio or description if found, else null",
+  "join_date": "account creation or join date if found, else null",
+  "activity": "brief summary of activity level (e.g. '500 posts', 'last active 2024', 'no posts'), else null",
+  "display_name": "display name or real name if different from username, else null",
+  "links": ["any external links, websites, or other social profiles mentioned on the page"],
+  "notable": "any other OSINT-relevant detail (location, email, interests, etc.), else null"
 }
 
 - "real": The page shows genuine user activity, bio, posts, or profile data.
 - "empty": The page is blank, default, suspended, deleted, or has no user content.
 - "suspicious": The page exists but has very minimal content — could be a \
 placeholder or abandoned account.
+
+For empty/default pages, you can set the extra fields to null. Focus on \
+extracting whatever is visible — even small details matter for OSINT.
 """
 
 USER_PROMPT_TEMPLATE = """\
@@ -61,13 +71,19 @@ class VerificationResult:
     confidence: float
     reason: str
     error: str | None = None
+    bio: str | None = None
+    join_date: str | None = None
+    activity: str | None = None
+    display_name: str | None = None
+    links: list[str] | None = None
+    notable: str | None = None
 
     @property
     def is_real(self) -> bool:
         return self.verdict == "real"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "platform": self.platform,
             "url": self.url,
             "verdict": self.verdict,
@@ -75,6 +91,19 @@ class VerificationResult:
             "reason": self.reason,
             "error": self.error,
         }
+        if self.bio:
+            d["bio"] = self.bio
+        if self.join_date:
+            d["join_date"] = self.join_date
+        if self.activity:
+            d["activity"] = self.activity
+        if self.display_name:
+            d["display_name"] = self.display_name
+        if self.links:
+            d["links"] = self.links
+        if self.notable:
+            d["notable"] = self.notable
+        return d
 
 
 def _strip_to_text(html: str) -> str:
@@ -300,12 +329,21 @@ async def verify_profile(
 
         parsed = _parse_llm_response(raw_response)
 
+        raw_links = parsed.get("links") or []
+        links = [l for l in raw_links if isinstance(l, str) and l.strip()] or None
+
         return VerificationResult(
             platform=platform,
             url=url,
             verdict=parsed.get("verdict", "suspicious"),
             confidence=float(parsed.get("confidence", 0.5)),
             reason=parsed.get("reason", ""),
+            bio=parsed.get("bio") or None,
+            join_date=parsed.get("join_date") or None,
+            activity=parsed.get("activity") or None,
+            display_name=parsed.get("display_name") or None,
+            links=links,
+            notable=parsed.get("notable") or None,
         )
 
     except Exception as e:
