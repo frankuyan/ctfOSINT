@@ -90,7 +90,7 @@ platforms:
     priority_weight: 0.65
 ```
 
-### All Built-in Platforms (93 total)
+### All Built-in Platforms (95 total)
 
 #### Tier 1: High Priority (>0.80 weight)
 
@@ -174,6 +174,8 @@ platforms:
 | weibo | 0.50 | 30/min | No |
 | vk | 0.50 | 30/min | No |
 | bilibili | 0.50 | 30/min | No |
+| vsco | 0.45 | 15/min | No |
+| letterboxd | 0.45 | 15/min | No |
 | vimeo | 0.45 | 5/min | No |
 | deviantart | 0.45 | 5/min | No |
 | xbox | 0.45 | 3/min | No |
