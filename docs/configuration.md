@@ -67,7 +67,7 @@ platforms:
 platforms:
   twitter:
     enabled: true
-    priority_weight: 0.78
+    priority_weight: 0.88
     auth_token: ${TWITTER_BEARER_TOKEN}
     rate_limit: 5.0
 ```
@@ -78,7 +78,7 @@ platforms:
 platforms:
   mastodon:
     enabled: true
-    priority_weight: 0.55
+    priority_weight: 0.85
 ```
 
 #### LinkedIn
@@ -105,18 +105,20 @@ platforms:
 | hackthebox | 0.85 | 3/min | No |
 | hackernews | 0.80 | 10/min | No |
 | bitbucket | 0.80 | 10/min | No |
+| reddit | 0.90 | 10/min | No |
+| twitter | 0.88 | 5/min | Optional |
+| mastodon | 0.85 | 10/min | No |
+| bluesky | 0.85 | 5/min | No |
 
 #### Tier 2: Medium Priority (0.60-0.80 weight)
 
 | Platform | Default Weight | Rate Limit | Auth Required |
 |----------|---------------|------------|---------------|
-| twitter | 0.78 | 5/min | Optional |
 | dockerhub | 0.78 | 10/min | No |
 | npm | 0.75 | 10/min | No |
 | pypi | 0.75 | 10/min | No |
 | stackoverflow | 0.75 | 5/min | No |
 | hackerone | 0.72 | 3/min | No |
-| reddit | 0.70 | 10/min | No |
 | devto | 0.70 | 10/min | No |
 | gitea | 0.70 | 10/min | No |
 | youtube | 0.70 | 5/min | No |
@@ -128,7 +130,6 @@ platforms:
 | lobsters | 0.65 | 5/min | No |
 | telegram | 0.65 | 3/min | No |
 | instagram | 0.60 | 3/min | No |
-| bluesky | 0.60 | 5/min | No |
 | codepen | 0.60 | 5/min | No |
 | leetcode | 0.60 | 5/min | No |
 | codeforces | 0.60 | 5/min | No |
@@ -144,7 +145,6 @@ platforms:
 
 | Platform | Default Weight | Rate Limit | Auth Required |
 |----------|---------------|------------|---------------|
-| mastodon | 0.55 | 10/min | No |
 | discord | 0.55 | 2/min | No |
 | threads | 0.55 | 3/min | No |
 | replit | 0.55 | 5/min | No |

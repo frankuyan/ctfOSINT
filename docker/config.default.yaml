@@ -14,7 +14,7 @@ platforms:
 
   twitter:
     enabled: true
-    priority_weight: 0.78
+    priority_weight: 0.88
     auth_token: ${TWITTER_BEARER_TOKEN}
     rate_limit: 5.0
 
@@ -25,12 +25,12 @@ platforms:
 
   reddit:
     enabled: true
-    priority_weight: 0.70
+    priority_weight: 0.90
     rate_limit: 10.0
 
   mastodon:
     enabled: true
-    priority_weight: 0.55
+    priority_weight: 0.85
     instance_url: https://mastodon.social
     rate_limit: 10.0
 
@@ -82,7 +82,7 @@ platforms:
     rate_limit: 3.0
   bluesky:
     enabled: true
-    priority_weight: 0.60
+    priority_weight: 0.85
     rate_limit: 5.0
   askfm:
     enabled: true
@@ -399,6 +399,10 @@ ctf:
     - 'CTF_[A-Za-z0-9_]+_[A-Za-z0-9]+'
   
   priority_platforms:
+    - reddit
+    - twitter
+    - mastodon
+    - bluesky
     - pastebin
     - github
     - gist
