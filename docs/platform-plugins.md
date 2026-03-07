@@ -1,6 +1,6 @@
 # Platform Plugins Guide
 
-SherlockML includes **93 built-in platforms** across 12 categories (including international platforms for Chinese, Russian, Japanese, and Korean services) and supports custom plugins via the plugin system.
+SherlockML includes **95 built-in platforms** across 12 categories (including international platforms for Chinese, Russian, Japanese, and Korean services) and supports custom plugins via the plugin system.
 
 ## Built-in Platforms
 
@@ -43,7 +43,7 @@ SherlockML includes **93 built-in platforms** across 12 categories (including in
 | **TryHackMe** | 0.85 | No | CTF platform user profiles |
 | **Hack The Box** | 0.85 | No | CTF platform user profiles |
 
-### Social (15 platforms)
+### Social (17 platforms)
 
 | Platform | Weight | Auth | Features |
 |----------|--------|------|----------|
@@ -62,6 +62,8 @@ SherlockML includes **93 built-in platforms** across 12 categories (including in
 | **ASKfm** | 0.40 | No | Q&A profile check |
 | **Weibo** | 0.50 | No | Chinese social media |
 | **VKontakte** | 0.50 | No | Russian social network |
+| **VSCO** | 0.45 | No | Photography profile check |
+| **Letterboxd** | 0.45 | No | Film lover profile check |
 
 ### Video (7 platforms)
 

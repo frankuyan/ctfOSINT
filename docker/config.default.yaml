@@ -92,6 +92,14 @@ platforms:
     enabled: true
     priority_weight: 0.50
     rate_limit: 5.0
+  vsco:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 5.0
+  letterboxd:
+    enabled: true
+    priority_weight: 0.45
+    rate_limit: 5.0
 
   # --- Video ---
   youtube:

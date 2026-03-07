@@ -21,6 +21,8 @@ from sherlockml.platforms.threads import ThreadsPlatform
 from sherlockml.platforms.bluesky import BlueskyPlatform
 from sherlockml.platforms.askfm import AskFmPlatform
 from sherlockml.platforms.imgur import ImgurPlatform
+from sherlockml.platforms.vsco import VSCOPlatform
+from sherlockml.platforms.letterboxd import LetterboxdPlatform
 
 # --- Video ---
 from sherlockml.platforms.youtube import YouTubePlatform
@@ -145,6 +147,8 @@ __all__ = [
     "BlueskyPlatform",
     "AskFmPlatform",
     "ImgurPlatform",
+    "VSCOPlatform",
+    "LetterboxdPlatform",
     # Video
     "YouTubePlatform",
     "TikTokPlatform",

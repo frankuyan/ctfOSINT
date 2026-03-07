@@ -7,7 +7,7 @@
 
 ## Features
 
-- 🔍 **Smart Enumeration**: Search 93 built-in platforms with async parallelism
+- 🔍 **Smart Enumeration**: Search 95 built-in platforms with async parallelism
 - 🌍 **International Coverage**: Chinese, Russian, Japanese, Korean, and European platforms
 - 🛡️ **Advanced False Positive Detection**: Soft 404s, empty pages, login walls, redirect detection, and multilingual "not found" patterns
 - 🤖 **LLM Profile Verification**: Use OpenAI, Anthropic, Gemini, or local models to verify if found accounts are real or empty
@@ -140,7 +140,7 @@ sherlockml/
 │   ├── json_reporter.py
 │   ├── graphviz_export.py
 │   └── markdown_writer.py
-└── platforms/      # Built-in platforms (93)
+└── platforms/      # Built-in platforms (95)
 ```
 
 ## CTF Features
@@ -177,7 +177,7 @@ ansible-playbook -i inventory playbook.yml \
 
 ## Performance
 
-- 93 platforms with 20 variants: < 4 minutes
+- 95 platforms with 20 variants: < 4 minutes
 - Vectorstore query latency: < 100ms
 - RL model update: < 1s per feedback
 - Memory footprint: < 500MB base
