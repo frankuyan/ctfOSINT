@@ -96,7 +96,7 @@ class JSONReporter:
         metadata_score = self._score_metadata(result.metadata)
         
         # Cross-platform correlation
-        correlation_score = 1.0
+        correlation_score = 0.5
         if all_results:
             correlation_score = self._score_correlation(result, all_results)
         

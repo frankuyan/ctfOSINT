@@ -79,6 +79,13 @@ class VerificationResult:
 
 def _strip_to_text(html: str) -> str:
     """Strip HTML to meaningful text content for LLM analysis."""
+    # Extract structural JSON data before removing scripts
+    json_data = re.findall(
+        r'<script[^>]*type=["\'](?:application/ld\+json|application/json)["\'][^>]*>(.*?)</script>',
+        html,
+        flags=re.DOTALL | re.IGNORECASE
+    )
+    
     # Remove script and style blocks
     text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
@@ -88,7 +95,15 @@ def _strip_to_text(html: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()[:_MAX_CONTENT_CHARS]
+    
+    text = text.strip()
+    
+    # If we found JSON data, prepend it so the LLM sees it first
+    if json_data:
+        json_text = "\n".join(json_data).strip()
+        text = f"Structured Data:\n{json_text}\n\nPage Text:\n{text}"
+        
+    return text[:_MAX_CONTENT_CHARS]
 
 
 async def _call_openai(
@@ -203,24 +218,40 @@ async def _call_gemini(
 
 def _parse_llm_response(raw: str) -> dict[str, Any]:
     """Parse the JSON verdict from the LLM response."""
-    # Try to extract JSON from the response (handle markdown fences)
     cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```\w*\n?", "", cleaned)
-        cleaned = re.sub(r"\n?```$", "", cleaned)
+    
+    # 1. Try to extract JSON from markdown fences
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, flags=re.DOTALL | re.IGNORECASE)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # 2. Try parsing the whole cleaned string (removing leading/trailing fences if present)
+    cleaned_fences = cleaned
+    if cleaned_fences.startswith("```"):
+        cleaned_fences = re.sub(r"^```\w*\n?", "", cleaned_fences)
+        cleaned_fences = re.sub(r"\n?```$", "", cleaned_fences)
 
     try:
-        return json.loads(cleaned)
+        return json.loads(cleaned_fences)
     except json.JSONDecodeError:
-        # Try to find JSON object in the text
-        match = re.search(r"\{[^{}]+\}", cleaned, re.DOTALL)
-        if match:
+        pass
+
+    # 3. Fallback: try to find the outermost JSON object using regex
+    match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+    if match:
+        try:
             return json.loads(match.group())
-        return {
-            "verdict": "suspicious",
-            "confidence": 0.3,
-            "reason": f"Could not parse LLM response: {raw[:100]}",
-        }
+        except json.JSONDecodeError:
+            pass
+            
+    return {
+        "verdict": "suspicious",
+        "confidence": 0.3,
+        "reason": f"Could not parse LLM response: {raw[:100]}",
+    }
 
 
 async def verify_profile(

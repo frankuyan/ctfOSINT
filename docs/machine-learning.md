@@ -1,14 +1,50 @@
 # Machine Learning Components
 
-SherlockML integrates three ML components for intelligent OSINT.
+SherlockML integrates four ML components for intelligent OSINT.
 
 ## Overview
 
 | Component | Purpose | Technology |
 |-----------|---------|------------|
+| **LLM Verification** | Verifying if profiles are real/active | Large Language Models (OpenAI/Anthropic/Gemini) |
 | **RAG Pipeline** | Semantic search over indexed data | ChromaDB + Sentence Transformers |
 | **RL Controller** | Platform prioritization | Thompson Sampling Multi-Armed Bandit |
 | **NER Extractor** | Entity extraction | SpaCy + Custom Regex |
+
+---
+
+## LLM Verification
+
+### What is LLM Verification?
+
+Because modern platforms often use Single Page Applications (SPAs) or have complex bot-protection mechanisms, simply checking for a 200 OK status or performing basic regex checks can lead to false positives (e.g., hitting a generic "User not found" page) or false negatives.
+
+SherlockML addresses this by sending the raw HTML of discovered profiles to a Large Language Model (LLM) such as OpenAI's GPT-4, Anthropic's Claude, or Google's Gemini, which intelligently determines if the profile is genuine.
+
+### How It Works
+
+1. **Extraction:** Before stripping the page content, SherlockML extracts structural JSON (`application/ld+json` or `application/json`) from `<script>` tags, which is heavily used by SPAs to store profile data.
+2. **Text Normalization:** It removes styling and non-relevant scripts, converting structural HTML into a plaintext format with structural hints.
+3. **LLM Evaluation:** The extracted structured data and plaintext are sent to the LLM.
+4. **Robust Parsing:** The LLM responds with a JSON verdict (`real`, `empty`, or `suspicious`) along with a confidence score and a brief explanation. The result is parsed using a robust regex engine capable of handling nested JSON and markdown fences.
+
+### Usage
+
+You can enable LLM verification by passing the `--verify` flag to the search command:
+
+```bash
+sherlockml search targetuser --verify --llm-key sk-...
+```
+
+Configuration can also be set within your `config.yaml`:
+
+```yaml
+llm:
+  enabled: true
+  provider: openai
+  api_key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+```
 
 ---
 
