@@ -43,6 +43,8 @@ sherlockml search [OPTIONS] USERNAME
 | `--proxy` | | TEXT | - | Proxy URL (socks5://host:port) |
 | `--wordlist` | `-w` | PATH | - | File with additional usernames |
 | `--variants` | | FLAG | false | Auto-generate username variants |
+| `--verify` | | FLAG | false | Use LLM to verify found profiles are real |
+| `--llm-key` | | TEXT | - | LLM API key (overrides config, env: SHERLOCKML_LLM_KEY) |
 
 **Examples:**
 
@@ -61,6 +63,15 @@ sherlockml search johndoe --proxy socks5://127.0.0.1:9050
 
 # Search with custom wordlist
 sherlockml search johndoe -w usernames.txt
+
+# Search and verify profiles with LLM (OpenAI)
+sherlockml search johndoe --verify --llm-key sk-...
+
+# Verify with Gemini (set provider in config)
+sherlockml search johndoe --verify --llm-key AIza...
+
+# Verify using config API key
+sherlockml search johndoe --verify
 ```
 
 ---
@@ -275,3 +286,7 @@ sherlockml init --force
 | `TWITTER_BEARER_TOKEN` | Twitter API bearer token |
 | `SHERLOCKML_CONFIG` | Override config file path |
 | `SHERLOCKML_DATA` | Data directory path |
+| `SHERLOCKML_LLM_KEY` | LLM API key for profile verification |
+| `OPENAI_API_KEY` | OpenAI API key (used by LLM config) |
+| `ANTHROPIC_API_KEY` | Anthropic API key (used by LLM config) |
+| `GEMINI_API_KEY` | Google Gemini API key (used by LLM config) |

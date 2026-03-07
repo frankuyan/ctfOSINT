@@ -141,6 +141,32 @@ class CTFConfig(BaseModel):
     ])
 
 
+class LLMConfig(BaseModel):
+    """LLM configuration for profile verification."""
+    enabled: bool = False
+    provider: str = "openai"  # openai, anthropic, gemini, or openai-compatible
+    api_key: str | None = None
+    model: str = "gpt-4o-mini"
+    base_url: str | None = None  # For openai-compatible endpoints
+    max_tokens: int = 256
+    max_concurrent_verifications: int = 5
+    verify_found_only: bool = True  # Only verify profiles marked as found
+
+    @field_validator('api_key', mode='before')
+    @classmethod
+    def expand_api_key(cls, v: str | None) -> str | None:
+        if v is not None:
+            return expand_env_vars(v)
+        return v
+
+    @field_validator('base_url', mode='before')
+    @classmethod
+    def expand_base_url(cls, v: str | None) -> str | None:
+        if v is not None:
+            return expand_env_vars(v)
+        return v
+
+
 class LoggingConfig(BaseModel):
     """Logging configuration."""
     level: str = "INFO"
@@ -158,6 +184,7 @@ class Config(BaseModel):
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     ctf: CTFConfig = Field(default_factory=CTFConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     plugins_dir: str = "~/.sherlockml/plugins"
     data_dir: str = "~/.sherlockml/data"
@@ -297,6 +324,15 @@ proxy:
 output:
   default_format: json
   pretty_print: true
+
+llm:
+  enabled: false
+  provider: openai          # openai, anthropic, gemini, or openai-compatible
+  api_key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+  # base_url: http://localhost:11434/v1  # For local models (Ollama, etc.)
+  max_tokens: 256
+  max_concurrent_verifications: 5
 
 ctf:
   auto_detect_format: true
