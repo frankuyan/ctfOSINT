@@ -347,7 +347,7 @@ async with aiohttp.ClientSession() as session:
 from sherlockml.extract.wayback import WaybackIntegration
 import aiohttp
 
-wayback = WaybackIntegration()
+wayback = WaybackIntegration(rate_limit=10.0)  # requests per minute
 
 async with aiohttp.ClientSession() as session:
     # Get snapshots
@@ -357,17 +357,53 @@ async with aiohttp.ClientSession() as session:
         from_date="2020",
         limit=50,
     )
-    
+
     for snap in snapshots:
         print(f"{snap.datetime}: {snap.wayback_url}")
-    
-    # Full analysis
+
+    # Full analysis with flag scanning and diffing
     result = await wayback.analyze_url(
         "https://example.com",
         session,
+        from_date="2020",
+        scan_content=True,        # fetch and scan content for flags
+        diff_snapshots=True,      # compare consecutive snapshots
+        max_content_snapshots=5,  # limit content fetches
+        flag_patterns=[r'flag\{[^}]+\}'],  # custom patterns (optional)
     )
     print(f"Hidden endpoints: {result.hidden_endpoints}")
     print(f"Robots.txt entries: {result.robots_entries}")
+    print(f"Flags found: {result.flags_found}")
+    print(f"Diffs: {len(result.diffs)}")
+
+    # Scan profile history across platforms
+    profile_results = await wayback.scan_profile_history(
+        "targetuser",
+        session,
+        platforms=["github", "twitter", "reddit"],  # optional filter
+        from_date="2020",
+    )
+    for r in profile_results:
+        print(f"{r.original_url}: {r.snapshot_count} snapshots")
+
+    # Wildcard domain scan
+    domain_result = await wayback.scan_url_wildcard(
+        "example.com",
+        session,
+        from_date="2023",
+    )
+    print(f"Unique pages: {domain_result.snapshot_count}")
+    print(f"Interesting endpoints: {domain_result.hidden_endpoints}")
+
+    # Get content at a specific date
+    content = await wayback.get_content_at_date(
+        "https://example.com/page",
+        session,
+        target_date="20230615",
+    )
+
+    # Serialize results
+    data = result.to_dict()
 ```
 
 ### SocialMediaParser

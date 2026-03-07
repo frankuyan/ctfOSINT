@@ -515,6 +515,222 @@ async def scan_github(
         console.print(f"\n[dim]Saved to: {output}[/dim]")
 
 
+@main.command('wayback')
+@click.argument('target')
+@click.option('--mode', '-m', type=click.Choice(['url', 'profile', 'domain']), default='url',
+              help='Scan mode: url (single URL), profile (username across platforms), domain (wildcard)')
+@click.option('--from-date', type=str, help='Start date (YYYY or YYYYMMDD)')
+@click.option('--to-date', type=str, help='End date (YYYY or YYYYMMDD)')
+@click.option('--scan-content', '-s', is_flag=True, help='Fetch and scan snapshot content for flags')
+@click.option('--diff', '-d', is_flag=True, help='Show differences between snapshots')
+@click.option('--platforms', '-p', type=str, help='Comma-separated platform names (profile mode)')
+@click.option('--max-snapshots', type=int, default=5, help='Max snapshots to fetch content from')
+@click.option('--output', '-o', type=click.Path(path_type=Path), help='Output file (JSON)')
+@click.option('--rate-limit', '-r', type=float, default=10.0, help='Requests per minute to Wayback API')
+@click.pass_context
+@async_command
+async def wayback(
+    ctx: click.Context,
+    target: str,
+    mode: str,
+    from_date: str | None,
+    to_date: str | None,
+    scan_content: bool,
+    diff: bool,
+    platforms: str | None,
+    max_snapshots: int,
+    output: Path | None,
+    rate_limit: float,
+) -> None:
+    """Query the Wayback Machine for historical OSINT data.
+
+    TARGET is a URL, username, or domain depending on --mode.
+
+    Examples:
+
+        sherlockml wayback https://example.com/user --scan-content
+
+        sherlockml wayback john_doe --mode profile --scan-content
+
+        sherlockml wayback example.com --mode domain --scan-content
+
+        sherlockml wayback https://ctf-site.com/challenge --from-date 2023 --diff
+    """
+    import aiohttp
+    import json
+    from sherlockml.extract.wayback import WaybackIntegration
+
+    config = ctx.obj['config']
+    wb = WaybackIntegration(rate_limit=rate_limit)
+
+    # Get flag patterns from config
+    flag_patterns = config.ctf.flag_patterns if config.ctf.auto_detect_format else None
+
+    platform_list = platforms.split(',') if platforms else None
+
+    console.print(f"[bold blue]SherlockML Wayback[/bold blue] - Mode: [green]{mode}[/green]")
+    console.print(f"Target: [cyan]{target}[/cyan]")
+    if from_date or to_date:
+        console.print(f"Date range: {from_date or '...'} to {to_date or '...'}")
+    console.print()
+
+    async with aiohttp.ClientSession() as session:
+        if mode == 'url':
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Querying Wayback Machine...", total=None)
+                result = await wb.analyze_url(
+                    target, session,
+                    from_date=from_date, to_date=to_date,
+                    flag_patterns=flag_patterns,
+                    scan_content=scan_content,
+                    diff_snapshots=diff,
+                    max_content_snapshots=max_snapshots,
+                )
+                progress.update(task, completed=True)
+
+            _display_wayback_result(result, diff)
+
+            if output:
+                output.write_text(json.dumps(result.to_dict(), indent=2))
+                console.print(f"\n[dim]Saved to: {output}[/dim]")
+
+        elif mode == 'profile':
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task(
+                    f"Scanning archived profiles for '{target}'...", total=None
+                )
+                results = await wb.scan_profile_history(
+                    target, session,
+                    platforms=platform_list,
+                    from_date=from_date, to_date=to_date,
+                    flag_patterns=flag_patterns,
+                )
+                progress.update(task, completed=True)
+
+            if not results:
+                console.print("[yellow]No archived profiles found.[/yellow]")
+                return
+
+            all_flags: list[str] = []
+            for r in results:
+                _display_wayback_result(r, show_diffs=False)
+                all_flags.extend(r.flags_found)
+
+            console.print()
+            console.print(f"[bold]Total:[/bold] {len(results)} platforms with archived data")
+
+            if all_flags:
+                console.print()
+                console.print("[bold red]FLAGS FOUND:[/bold red]")
+                for flag in all_flags:
+                    console.print(f"  {flag}")
+
+            if output:
+                data = [r.to_dict() for r in results]
+                output.write_text(json.dumps(data, indent=2))
+                console.print(f"\n[dim]Saved to: {output}[/dim]")
+
+        elif mode == 'domain':
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task(
+                    f"Wildcard scanning {target}...", total=None
+                )
+                result = await wb.scan_url_wildcard(
+                    target, session,
+                    from_date=from_date, to_date=to_date,
+                    flag_patterns=flag_patterns,
+                )
+                progress.update(task, completed=True)
+
+            # Show unique URLs discovered
+            seen: set[str] = set()
+            unique_urls = []
+            for s in result.snapshots:
+                if s.original_url not in seen:
+                    seen.add(s.original_url)
+                    unique_urls.append(s.original_url)
+
+            console.print(f"[bold]Discovered URLs:[/bold] {len(unique_urls)}")
+            for url in unique_urls[:30]:
+                console.print(f"  {url}")
+            if len(unique_urls) > 30:
+                console.print(f"  [dim]... and {len(unique_urls) - 30} more[/dim]")
+
+            if result.hidden_endpoints:
+                console.print()
+                console.print(f"[bold yellow]Interesting endpoints:[/bold yellow] {len(result.hidden_endpoints)}")
+                for ep in result.hidden_endpoints:
+                    console.print(f"  [yellow]{ep}[/yellow]")
+
+            if result.flags_found:
+                console.print()
+                console.print("[bold red]FLAGS FOUND:[/bold red]")
+                for flag in result.flags_found:
+                    console.print(f"  {flag}")
+
+            if output:
+                output.write_text(json.dumps(result.to_dict(), indent=2))
+                console.print(f"\n[dim]Saved to: {output}[/dim]")
+
+
+def _display_wayback_result(result: "WaybackResult", show_diffs: bool = False) -> None:
+    """Display a single WaybackResult to the console."""
+    from sherlockml.extract.wayback import WaybackResult as _WR  # noqa: F811
+
+    date_range = result.date_range
+
+    console.print(f"[bold cyan]{result.original_url}[/bold cyan]")
+    console.print(f"  Snapshots: {result.snapshot_count}")
+    if date_range:
+        console.print(f"  Date range: {date_range[0]} - {date_range[1]}")
+
+    if result.hidden_endpoints:
+        console.print(f"  [yellow]Hidden endpoints: {len(result.hidden_endpoints)}[/yellow]")
+        for ep in result.hidden_endpoints[:10]:
+            console.print(f"    {ep}")
+
+    if result.robots_entries:
+        console.print(f"  Robots.txt entries: {len(result.robots_entries)}")
+
+    if result.sitemap_urls:
+        console.print(f"  Sitemap URLs: {len(result.sitemap_urls)}")
+
+    if result.historical_content:
+        console.print(f"  [dim]Content snapshots fetched: {len(result.historical_content)}[/dim]")
+
+    if show_diffs and result.diffs:
+        console.print()
+        console.print(f"  [bold]Changes detected: {len(result.diffs)}[/bold]")
+        for d in result.diffs[:5]:
+            console.print(f"    {d.old_timestamp} -> {d.new_timestamp}")
+            for line in d.added_lines[:5]:
+                console.print(f"      [green]+ {line[:120]}[/green]")
+            for line in d.removed_lines[:5]:
+                console.print(f"      [red]- {line[:120]}[/red]")
+            if len(d.added_lines) > 5 or len(d.removed_lines) > 5:
+                console.print(f"      [dim]... and more changes[/dim]")
+
+    if result.flags_found:
+        console.print()
+        console.print("  [bold red]FLAGS:[/bold red]")
+        for flag in result.flags_found:
+            console.print(f"    {flag}")
+
+    console.print()
+
+
 @main.command('init')
 @click.option('--force', '-f', is_flag=True, help='Overwrite existing config')
 def init(force: bool) -> None:
