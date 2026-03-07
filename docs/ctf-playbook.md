@@ -9,6 +9,9 @@ Strategies and techniques for using SherlockML in CTF competitions.
 | Basic recon | `sherlockml search $TARGET` |
 | Fast flag hunt | `sherlockml search $TARGET --fast-fail` |
 | Deep GitHub | `sherlockml scan-github $TARGET --commits -d 50` |
+| Wayback URL scan | `sherlockml wayback $URL --scan-content --diff` |
+| Wayback profile scan | `sherlockml wayback $TARGET --mode profile -s` |
+| Wayback domain scan | `sherlockml wayback $DOMAIN --mode domain -s` |
 | Generate wordlist | `sherlockml generate-variants $TARGET --leet --years 2020-2025` |
 
 ---
@@ -60,7 +63,20 @@ grep -i "flag\|ctf" github_results.json
 
 ### Step 4: Historical Analysis
 
-Check Wayback Machine for deleted content:
+Check Wayback Machine for deleted content using the CLI:
+
+```bash
+# Scan a specific URL for archived content and flags
+sherlockml wayback https://github.com/johndoe --scan-content --diff --from-date 2020
+
+# Scan all archived profiles for the username
+sherlockml wayback johndoe --mode profile --scan-content -o wayback.json
+
+# Wildcard scan for hidden files on a challenge domain
+sherlockml wayback challenge-site.com --mode domain --scan-content
+```
+
+Or use the Python API directly:
 
 ```python
 from sherlockml.extract.wayback import WaybackIntegration
@@ -73,11 +89,15 @@ async def check_history():
         result = await wayback.analyze_url(
             "https://github.com/johndoe",
             session,
-            from_date="2020"
+            from_date="2020",
+            scan_content=True,
+            diff_snapshots=True,
         )
         print(f"Snapshots: {result.snapshot_count}")
         for endpoint in result.hidden_endpoints:
             print(f"Hidden: {endpoint}")
+        for flag in result.flags_found:
+            print(f"Flag: {flag}")
 
 asyncio.run(check_history())
 ```
@@ -198,11 +218,9 @@ Goal: Find sensitive data (emails, old posts)
 # Deep GitHub scan
 sherlockml scan-github knownuser --commits -d 50
 
-# Wayback Machine
-python -c "
-from sherlockml.extract.wayback import WaybackIntegration
-# ... check historical pages
-"
+# Wayback Machine - scan profile and domain
+sherlockml wayback knownuser --mode profile --scan-content
+sherlockml wayback target-site.com --mode domain --scan-content
 ```
 
 ### Type 3: Find the Flag

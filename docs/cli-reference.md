@@ -244,6 +244,72 @@ sherlockml rl-train -d past_ctfs.json -e 100
 
 ---
 
+### wayback
+
+Query the Wayback Machine for historical OSINT data.
+
+```bash
+sherlockml wayback [OPTIONS] TARGET
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `TARGET` | URL, username, or domain depending on `--mode` |
+
+**Options:**
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--mode` | `-m` | CHOICE | url | Scan mode: url, profile, or domain |
+| `--from-date` | | TEXT | - | Start date (YYYY or YYYYMMDD) |
+| `--to-date` | | TEXT | - | End date (YYYY or YYYYMMDD) |
+| `--scan-content` | `-s` | FLAG | false | Fetch and scan snapshot content for flags |
+| `--diff` | `-d` | FLAG | false | Show differences between snapshots |
+| `--platforms` | `-p` | TEXT | - | Comma-separated platform names (profile mode) |
+| `--max-snapshots` | | INT | 5 | Max snapshots to fetch content from |
+| `--output` | `-o` | PATH | - | Output file (JSON) |
+| `--rate-limit` | `-r` | FLOAT | 10.0 | Requests per minute to Wayback API |
+
+**Modes:**
+
+- **url** - Analyze a single URL: snapshots, robots.txt, sitemap, hidden endpoints, flag scanning
+- **profile** - Scan a username's archived profiles across 27 platforms
+- **domain** - Wildcard discovery of all archived pages under a domain
+
+**Examples:**
+
+```bash
+# Analyze a single URL's history
+sherlockml wayback https://example.com/user --scan-content
+
+# Scan with snapshot diffing to find changes
+sherlockml wayback https://ctf-site.com/challenge --from-date 2023 --diff
+
+# Find archived profiles for a username
+sherlockml wayback john_doe --mode profile --scan-content
+
+# Check specific platforms only
+sherlockml wayback john_doe --mode profile -p github,twitter,pastebin -s
+
+# Wildcard domain scan for hidden files
+sherlockml wayback challenge-site.com --mode domain -s
+
+# Save results to JSON
+sherlockml wayback https://example.com -s -o wayback_results.json
+```
+
+**What It Finds:**
+
+- Historical snapshots with timestamps and Wayback URLs
+- Hidden endpoints from robots.txt (admin, api, backup, .git, .env, etc.)
+- Sitemap URLs from archived sitemap.xml
+- CTF flags in archived page content
+- Content changes between snapshots (diff mode)
+- Deleted profiles and old bios (profile mode)
+- Forgotten files like flag.txt, .env, .bak, .sql (domain mode)
+
+---
+
 ### init
 
 Initialize SherlockML configuration.

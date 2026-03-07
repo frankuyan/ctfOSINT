@@ -37,6 +37,11 @@ sherlockml generate-variants john_doe --leet --years 2020-2025
 
 # Deep GitHub scan
 sherlockml scan-github targetuser --commits --depth 20
+
+# Wayback Machine analysis
+sherlockml wayback https://example.com --scan-content --diff
+sherlockml wayback john_doe --mode profile --scan-content
+sherlockml wayback example.com --mode domain --scan-content
 ```
 
 ## Installation
@@ -66,6 +71,7 @@ docker run -v ~/.sherlockml:/root/.sherlockml sherlockml search targetuser
 | `search <username>` | Search across all platforms |
 | `generate-variants <username>` | Generate username permutations |
 | `scan-github <username>` | Deep GitHub enumeration |
+| `wayback <target>` | Query Wayback Machine for historical data |
 | `rag-query <query>` | Semantic search indexed data |
 | `rl-train --dataset <file>` | Train platform prioritization |
 | `init` | Initialize configuration |
@@ -149,7 +155,7 @@ sherlockml/
 - **Fast-Fail Mode**: Stop searching after first flag found
 - **Writeup Generation**: Auto-generate Markdown CTF writeups
 - **Team Sharing**: Export flags to `flags.json`
-- **Time Travel**: Query Wayback Machine for historical data
+- **Time Travel**: Full Wayback Machine CLI with URL, profile, and domain scan modes
 
 ## Development
 
