@@ -10,6 +10,7 @@
 - 🔍 **Smart Enumeration**: Search 93 built-in platforms with async parallelism
 - 🌍 **International Coverage**: Chinese, Russian, Japanese, Korean, and European platforms
 - 🛡️ **Advanced False Positive Detection**: Soft 404s, empty pages, login walls, redirect detection, and multilingual "not found" patterns
+- 🤖 **LLM Profile Verification**: Use OpenAI, Anthropic, Gemini, or local models to verify if found accounts are real or empty
 - 🧠 **ML-Powered**: RAG for semantic search, RL for platform prioritization
 - 🚩 **CTF-Optimized**: Flag detection, fast-fail mode, writeup generation
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
@@ -27,6 +28,9 @@ sherlockml init
 
 # Search for a username
 sherlockml search john_doe --max-time 60
+
+# Search and verify profiles with LLM
+sherlockml search john_doe --verify --llm-key sk-...
 
 # Generate username variants
 sherlockml generate-variants john_doe --leet --years 2020-2025
@@ -75,7 +79,8 @@ sherlockml search john_doe \
   --format both \       # json, md, or both
   --fast-fail \         # Stop on first flag
   --variants \          # Auto-generate variants
-  --rate-limit 10       # Requests per second
+  --rate-limit 10 \     # Requests per second
+  --verify              # LLM verification of found profiles
 ```
 
 ## Configuration
@@ -100,6 +105,12 @@ search:
   max_concurrent: 25
   request_timeout: 15
 
+llm:
+  enabled: true
+  provider: openai         # openai, anthropic, gemini, or openai-compatible
+  api_key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+
 proxy:
   enabled: false
   type: socks5
@@ -115,6 +126,7 @@ sherlockml/
 │   ├── platform_base.py  # Platform interface + false positive detection
 │   ├── variants.py     # Username generation
 │   ├── orchestrator.py # Async search + confidence adjustment
+│   ├── verify.py       # LLM-powered profile verification
 │   └── registry.py     # Platform plugin system
 ├── ml/             # Machine learning
 │   ├── rag_pipeline.py # Vector search (ChromaDB)

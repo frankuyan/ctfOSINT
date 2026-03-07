@@ -46,7 +46,8 @@ sherlockml/
 │   ├── variants.py       # Username generation
 │   ├── platform_base.py  # Abstract platform interface + false positive detection
 │   ├── registry.py       # Plugin system
-│   └── orchestrator.py   # Async search + confidence adjustment
+│   ├── orchestrator.py   # Async search + confidence adjustment
+│   └── verify.py         # LLM-powered profile verification
 │
 ├── platforms/            # Built-in Platforms (93)
 │   ├── github.py         # Social, Code, Video, Gaming,
@@ -92,6 +93,7 @@ print(config.platforms.github.enabled)
 - `PlatformConfig` - Per-platform settings
 - `MLConfig` - ML component settings
 - `SearchConfig` - Search behavior settings
+- `LLMConfig` - LLM verification settings (provider, API key, model)
 
 ### 2. Enumeration Engine
 
@@ -253,6 +255,11 @@ Social graph analysis:
    ├── NER extraction
    ├── Flag detection
    └── Confidence scoring
+
+5b. LLM Verification (optional, --verify)
+   ├── Strip HTML to text for each found profile
+   ├── Send to LLM (OpenAI/Anthropic/Gemini/local)
+   └── Classify as real / empty / suspicious
 
 6. RAG Indexing
    └── Store in vectorstore for future queries

@@ -66,6 +66,8 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.option('--proxy', type=str, help='Proxy URL (socks5://host:port)')
 @click.option('--wordlist', '-w', type=click.Path(exists=True, path_type=Path), help='Username variants wordlist')
 @click.option('--variants', is_flag=True, help='Auto-generate username variants')
+@click.option('--verify', is_flag=True, help='Use LLM to verify found profiles are real')
+@click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config)')
 @click.pass_context
 @async_command
 async def search(
@@ -79,6 +81,8 @@ async def search(
     proxy: str | None,
     wordlist: Path | None,
     variants: bool,
+    verify: bool,
+    llm_key: str | None,
 ) -> None:
     """Search for USERNAME across platforms.
     
@@ -171,6 +175,63 @@ async def search(
         
         progress.update(task, completed=True)
     
+    # LLM Verification of found profiles
+    verification_results = []
+    if verify or config.llm.enabled:
+        from sherlockml.enum.verify import verify_results as run_verification
+
+        # Override API key from CLI if provided
+        if llm_key:
+            config.llm.api_key = llm_key
+            config.llm.enabled = True
+
+        if not config.llm.api_key:
+            console.print(
+                "[yellow]LLM verification requested but no API key configured.[/yellow]"
+            )
+            console.print(
+                "[dim]Set llm.api_key in config, SHERLOCKML_LLM_KEY env var, or --llm-key flag.[/dim]"
+            )
+        else:
+            # Collect found results that have raw HTML
+            to_verify = []
+            for r in results.found_results:
+                raw = r.metadata.get("_raw_response", "")
+                if raw and r.url:
+                    to_verify.append({
+                        "platform": r.platform,
+                        "url": r.url,
+                        "username": r.username,
+                        "raw_html": raw,
+                    })
+
+            if to_verify:
+                console.print()
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    vtask = progress.add_task(
+                        f"Verifying {len(to_verify)} profiles with LLM...",
+                        total=None,
+                    )
+                    verification_results = await run_verification(to_verify, config.llm)
+                    progress.update(vtask, completed=True)
+
+                # Build lookup for display
+                verdict_map = {v.url: v for v in verification_results}
+
+                # Update result metadata with verification
+                for r in results.found_results:
+                    v = verdict_map.get(r.url)
+                    if v:
+                        r.metadata["llm_verdict"] = v.verdict
+                        r.metadata["llm_confidence"] = v.confidence
+                        r.metadata["llm_reason"] = v.reason
+                        if v.error:
+                            r.metadata["llm_error"] = v.error
+
     # Display results
     console.print()
     console.print(f"[bold]Results:[/bold]")
@@ -178,13 +239,53 @@ async def search(
     console.print(f"  Profiles found: {results.found_count}")
     console.print(f"  Flags found: {len(results.flags_found)}")
     console.print(f"  Time: {results.elapsed_time:.1f}s")
-    
+
+    # Show verification summary if we ran it
+    if verification_results:
+        real_count = sum(1 for v in verification_results if v.verdict == "real")
+        empty_count = sum(1 for v in verification_results if v.verdict == "empty")
+        suspicious_count = sum(1 for v in verification_results if v.verdict == "suspicious")
+        console.print()
+        console.print(f"[bold]LLM Verification:[/bold]")
+        console.print(f"  [green]Real accounts:[/green] {real_count}")
+        console.print(f"  [red]Empty/default pages:[/red] {empty_count}")
+        console.print(f"  [yellow]Suspicious:[/yellow] {suspicious_count}")
+        console.print()
+
+        # Detailed verification table
+        vtable = Table(show_header=True, title="Profile Verification")
+        vtable.add_column("Platform", style="cyan")
+        vtable.add_column("Verdict", justify="center")
+        vtable.add_column("Conf.", justify="right")
+        vtable.add_column("Reason")
+
+        for v in sorted(verification_results, key=lambda x: x.verdict):
+            if v.verdict == "real":
+                verdict_str = "[green]REAL[/green]"
+            elif v.verdict == "empty":
+                verdict_str = "[red]EMPTY[/red]"
+            else:
+                verdict_str = "[yellow]SUSPICIOUS[/yellow]"
+
+            reason = v.reason[:60] + "..." if len(v.reason) > 60 else v.reason
+            if v.error:
+                reason = f"[red]Error: {v.error[:50]}[/red]"
+
+            vtable.add_row(v.platform, verdict_str, f"{v.confidence:.0%}", reason)
+
+        console.print(vtable)
+
     if results.flags_found:
         console.print()
         console.print("[bold red]🚩 FLAGS FOUND:[/bold red]")
         for flag in results.flags_found:
             console.print(f"  {flag}")
     
+    # Attach verification data to results dict for output
+    if verification_results:
+        results_dict = results.to_dict()
+        results_dict["verification"] = [v.to_dict() for v in verification_results]
+
     # Save output
     if output is not None or output_format in ('md', 'both'):
         from sherlockml.output.json_reporter import JSONReporter

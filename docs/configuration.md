@@ -25,6 +25,7 @@ ml: {}             # Machine learning settings
 search: {}         # Search behavior settings
 proxy: {}          # Proxy configuration
 output: {}         # Output format settings
+llm: {}            # LLM profile verification settings
 ctf: {}            # CTF-specific settings
 plugins_dir: ~/.sherlockml/plugins   # Custom plugin directory
 data_dir: ~/.sherlockml/data         # Data directory
@@ -266,6 +267,53 @@ output:
   flags_file: ~/.sherlockml/flags.json
   writeup_template: ~/.sherlockml/templates/writeup.md.j2
 ```
+
+---
+
+## LLM Verification Configuration
+
+Use an LLM to verify whether found profiles are real accounts with actual content, or empty/default/suspended pages.
+
+```yaml
+llm:
+  enabled: false               # Enable LLM verification (or use --verify flag)
+  provider: openai             # openai, anthropic, gemini, or openai-compatible
+  api_key: ${OPENAI_API_KEY}   # API key (supports env var expansion)
+  model: gpt-4o-mini           # Model to use
+  base_url: null               # Custom endpoint (for Ollama, vLLM, etc.)
+  max_tokens: 256              # Max response tokens
+  max_concurrent_verifications: 5  # Parallel LLM calls
+  verify_found_only: true      # Only verify profiles marked as found
+```
+
+### Supported Providers
+
+| Provider | Config Value | API Key Env Var | Example Model |
+|----------|-------------|-----------------|---------------|
+| OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` |
+| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` | `claude-haiku-4-5-20251001` |
+| Google Gemini | `gemini` | `GEMINI_API_KEY` | `gemini-2.0-flash` |
+| Local/Compatible | `openai-compatible` | - | `llama3` |
+
+### Using Local Models (Ollama, vLLM, LM Studio)
+
+```yaml
+llm:
+  enabled: true
+  provider: openai-compatible
+  api_key: not-needed
+  model: llama3
+  base_url: http://localhost:11434/v1
+```
+
+### Verification Output
+
+When `--verify` is used, each found profile gets an LLM verdict:
+- **real**: Genuine account with actual user content
+- **empty**: Blank, default, suspended, or deleted page
+- **suspicious**: Minimal content, possibly abandoned or placeholder
+
+Results are displayed in a table and included in JSON output under `llm_verdict`, `llm_confidence`, and `llm_reason` metadata fields.
 
 ---
 
