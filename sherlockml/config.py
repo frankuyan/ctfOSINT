@@ -136,6 +136,7 @@ class CTFConfig(BaseModel):
     fast_fail: bool = False  # Stop after first flag found
     time_travel_date: str | None = None  # Set search date for historical queries
     priority_platforms: list[str] = Field(default_factory=lambda: [
+        "reddit", "twitter", "mastodon", "bluesky",
         "pastebin", "github", "gist", "keybase", "hackernews",
         "tryhackme", "hackthebox", "hackerone", "gitlab", "bitbucket", "gitea",
     ])
@@ -280,16 +281,16 @@ platforms:
     search_commits: true
   twitter:
     enabled: true
-    priority_weight: 0.78
+    priority_weight: 0.88
   linkedin:
     enabled: true
     priority_weight: 0.65
   reddit:
     enabled: true
-    priority_weight: 0.70
+    priority_weight: 0.90
   mastodon:
     enabled: true
-    priority_weight: 0.55
+    priority_weight: 0.85
   hackernews:
     enabled: true
     priority_weight: 0.80
