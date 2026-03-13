@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, TYPE_CHECKING
 
 import aiohttp
 from aiohttp_socks import ProxyConnector
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sherlockml.config import Config
@@ -194,7 +198,6 @@ class Orchestrator:
                 try:
                     result: PlatformResult = await platform.check_username(username, session)
 
-                    # Carry raw_response through to metadata so flag scanning can find it
                     metadata = dict(result.metadata)
                     if result.raw_response:
                         metadata["_raw_response"] = result.raw_response
@@ -241,13 +244,9 @@ class Orchestrator:
                         error=str(e),
                     )
 
-            # Should not reach here, but just in case
-            return SearchResult(
-                username=username,
-                platform=platform.name,
-                exists=False,
-                error="Max retries exceeded",
-            )
+            # Unreachable: the loop always returns within try/except blocks.
+            # Defensive fallback kept for type-checker satisfaction.
+            raise AssertionError("Unreachable: retry loop did not return")
     
     @staticmethod
     def _adjust_confidence(
@@ -262,13 +261,11 @@ class Orchestrator:
         If the body is very short or lacks typical profile indicators,
         the confidence is reduced and the result is tagged.
         """
-        import re as _re
-
         # Strip HTML to get plain text length
-        text = _re.sub(r"<[^>]+>", " ", body)
-        text = _re.sub(r"\s+", " ", text).strip()
+        text = re.sub(r"<[^>]+>", " ", body)
+        text = re.sub(r"\s+", " ", text).strip()
 
-        has_image = bool(_re.search(r"<img\s", body, _re.IGNORECASE))
+        has_image = bool(re.search(r"<img\s", body, re.IGNORECASE))
         has_username_mention = username.lower() in body.lower()
 
         penalties = 0
@@ -307,13 +304,14 @@ class Orchestrator:
         Returns:
             Aggregated SearchResults
         """
-        import re
-        
         start_time = time.monotonic()
         deadline = start_time + max_time if max_time else None
         
+        if not usernames:
+            return SearchResults(query_username="", total_platforms=0)
+
         results = SearchResults(
-            query_username=usernames[0] if usernames else "",
+            query_username=usernames[0],
             variants_searched=usernames.copy(),
             total_platforms=len(platforms) * len(usernames),
         )
@@ -340,27 +338,34 @@ class Orchestrator:
                     tasks.append(task)
             
             # Process as completed
+            cancelled_count = 0
             for coro in asyncio.as_completed(tasks):
-                # Check deadline
+                # Check deadline before awaiting next result
                 if deadline and time.monotonic() > deadline:
-                    # Cancel remaining tasks
                     for task in tasks:
                         if not task.done():
                             task.cancel()
+                            cancelled_count += 1
+                    if cancelled_count:
+                        logger.info(
+                            "Deadline exceeded, cancelled %d remaining tasks",
+                            cancelled_count,
+                        )
                     break
-                
+
                 try:
                     result = await coro
                 except asyncio.CancelledError:
+                    cancelled_count += 1
                     continue
-                
+
                 results.results.append(result)
-                
+
                 if result.error is None:
                     results.successful_checks += 1
                 else:
                     results.errors.append(f"{result.platform}: {result.error}")
-                
+
                 if result.exists:
                     results.found_count += 1
 
@@ -377,19 +382,34 @@ class Orchestrator:
                         for pattern in compiled_patterns:
                             matches = pattern.findall(text)
                             results.flags_found.extend(matches)
-                
+
                 # Callback
                 if callback:
                     callback(result)
-                
+
                 # Fast fail on flag found
                 if fast_fail and results.flags_found:
                     for task in tasks:
                         if not task.done():
                             task.cancel()
                     break
+
+            # Await any remaining cancelled tasks to suppress warnings
+            for task in tasks:
+                if not task.done():
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
         
         results.elapsed_time = time.monotonic() - start_time
+
+        # Strip raw responses from metadata unless explicitly requested,
+        # to avoid leaking PII/secrets in exported output.
+        if not self.config.output.include_raw_responses:
+            for r in results.results:
+                r.metadata.pop("_raw_response", None)
+
         return results
     
     async def search_single_platform(

@@ -177,6 +177,8 @@ class GraphvizExporter:
         
         return self.export(subgraph, Path("/dev/null"), title=f"Network around {center_node}")
     
+    ALLOWED_FORMATS = {"png", "svg", "pdf", "ps", "eps", "json"}
+
     def render_to_image(
         self,
         dot_path: Path | str,
@@ -184,22 +186,30 @@ class GraphvizExporter:
         format: str = "png",
     ) -> bool:
         """Render DOT file to image using graphviz.
-        
+
         Requires graphviz to be installed on the system.
-        
+
         Args:
             dot_path: Path to .dot file
             output_path: Path for output image
             format: Output format (png, svg, pdf)
-            
+
         Returns:
             True if successful
+
+        Raises:
+            ValueError: If format is not in ALLOWED_FORMATS
         """
         import subprocess
-        
+
+        if format not in self.ALLOWED_FORMATS:
+            raise ValueError(
+                f"Unsupported format {format!r}, must be one of {sorted(self.ALLOWED_FORMATS)}"
+            )
+
         try:
             subprocess.run(
-                ["dot", f"-T{format}", str(dot_path), "-o", str(output_path)],
+                ["dot", f"-T{format}", str(Path(dot_path).resolve()), "-o", str(Path(output_path).resolve())],
                 check=True,
                 capture_output=True,
             )
