@@ -42,21 +42,27 @@ sherlockml search [OPTIONS] USERNAME
 | `--rate-limit` | `-r` | FLOAT | - | Global requests per second |
 | `--proxy` | | TEXT | - | Proxy URL (socks5://host:port) |
 | `--wordlist` | `-w` | PATH | - | File with additional usernames |
-| `--variants` | | FLAG | false | Auto-generate username variants |
+| `--variants` | | FLAG | false | Full variant expansion (leet, prefixes, suffixes) |
+| `--no-variants` | | FLAG | false | Disable automatic basic variant generation |
+| `--deep` | | FLAG | false | Cross-platform discovery: search linked usernames found in profiles |
 | `--verify` | | FLAG | false | Use LLM to verify found profiles are real |
 | `--llm-key` | | TEXT | - | LLM API key (overrides config, env: SHERLOCKML_LLM_KEY) |
 
 **Examples:**
 
 ```bash
-# Basic search
-sherlockml search johndoe
+# Basic search (automatically generates separator/case variants)
+# e.g. john_doe -> johndoe, john.doe, john-doe, jdoe
+sherlockml search john_doe
 
-# Search with timeout and output
-sherlockml search johndoe -t 120 -o results.json
+# Search exact username only (no variants)
+sherlockml search john_doe --no-variants
 
-# Search with variants and fast-fail
-sherlockml search johndoe --variants --fast-fail
+# Full variant expansion (leet, prefixes, suffixes)
+sherlockml search john_doe --variants --fast-fail
+
+# Deep mode: discover and search linked usernames from found profiles
+sherlockml search john_doe --deep --max-time 120 -o results.json
 
 # Search through proxy
 sherlockml search johndoe --proxy socks5://127.0.0.1:9050
@@ -74,6 +80,15 @@ sherlockml search johndoe --verify --llm-key AIza...
 # Verify using config API key
 sherlockml search johndoe --verify
 ```
+
+**Username Variant Behavior:**
+
+By default, SherlockML generates basic separator and case variants from the input username. For example, `john_doe` automatically produces `johndoe`, `john.doe`, `john-doe`, `jdoe`, etc. This means more platforms are checked with common username patterns without any extra flags.
+
+- **Default**: Basic separator/case variants (small set, fast)
+- **`--variants`**: Full expansion with leetspeak, common prefixes/suffixes (up to 20 extra)
+- **`--no-variants`**: Search only the exact username entered
+- **`--deep`**: Cross-platform discovery — when a profile is found, extract linked usernames from the profile page and search those too (up to 5 discovered usernames)
 
 When `--verify` is used, results are split into two tables:
 - **Verified Profiles**: Real/suspicious accounts with extracted OSINT details (bio, display name, join date, activity, external links, notable info).

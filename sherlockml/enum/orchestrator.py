@@ -282,6 +282,46 @@ class Orchestrator:
 
         return confidence
 
+    @staticmethod
+    def _extract_discovered_usernames(result: "SearchResult") -> set[str]:
+        """Extract additional usernames from a found profile's metadata.
+
+        Scans raw HTML responses and metadata for social links that contain
+        usernames on other platforms.  Used by cross-platform discovery to
+        dynamically expand the search.
+        """
+        _SOCIAL_RE = re.compile(
+            r'(?:github|twitter|x|reddit|instagram|linkedin|mastodon|gitlab'
+            r'|bitbucket|keybase|hackernews|bluesky|youtube|twitch|medium'
+            r'|dev\.to|stackoverflow)\.com'
+            r'/(?:@|u/|user/|in/)?([a-zA-Z0-9_.-]{2,30})',
+            re.IGNORECASE,
+        )
+        found: set[str] = set()
+        texts: list[str] = []
+
+        raw = result.metadata.get("_raw_response", "")
+        if raw:
+            texts.append(raw)
+        if result.url:
+            texts.append(result.url)
+        for v in result.metadata.values():
+            if isinstance(v, str) and len(v) < 500:
+                texts.append(v)
+
+        for text in texts:
+            for m in _SOCIAL_RE.finditer(text):
+                username = m.group(1).rstrip("/").lower()
+                # Skip common non-username paths
+                if username not in (
+                    "about", "help", "login", "signup", "settings",
+                    "privacy", "terms", "search", "explore", "status",
+                    "api", "docs", "blog",
+                ):
+                    found.add(username)
+
+        return found
+
     async def search(
         self,
         usernames: list[str],
@@ -290,9 +330,11 @@ class Orchestrator:
         fast_fail: bool = False,
         flag_patterns: list[str] | None = None,
         max_time: float | None = None,
+        discover: bool = False,
+        max_discovered: int = 5,
     ) -> SearchResults:
         """Execute parallel searches across platforms.
-        
+
         Args:
             usernames: List of usernames to search
             platforms: List of platforms to search on
@@ -300,13 +342,16 @@ class Orchestrator:
             fast_fail: Stop after first flag found
             flag_patterns: Regex patterns to detect flags
             max_time: Maximum time in seconds (None for no limit)
-            
+            discover: Enable cross-platform discovery (when a profile is
+                found, extract linked usernames and search those too)
+            max_discovered: Maximum number of discovered usernames to add
+
         Returns:
             Aggregated SearchResults
         """
         start_time = time.monotonic()
         deadline = start_time + max_time if max_time else None
-        
+
         if not usernames:
             return SearchResults(query_username="", total_platforms=0)
 
@@ -315,28 +360,32 @@ class Orchestrator:
             variants_searched=usernames.copy(),
             total_platforms=len(platforms) * len(usernames),
         )
-        
+
         # Compile flag patterns
         compiled_patterns: list[re.Pattern[str]] = []
         if flag_patterns:
             compiled_patterns = [re.compile(p, re.IGNORECASE) for p in flag_patterns]
         elif self.config.ctf.flag_patterns:
             compiled_patterns = [
-                re.compile(p, re.IGNORECASE) 
+                re.compile(p, re.IGNORECASE)
                 for p in self.config.ctf.flag_patterns
             ]
-        
+
+        # Track all usernames already searched to avoid re-checking
+        searched_usernames: set[str] = set(u.lower() for u in usernames)
+        discovered_count = 0
+
         async with await self._create_session() as session:
             # Create all tasks
             tasks: list[asyncio.Task[SearchResult]] = []
-            
+
             for username in usernames:
                 for platform in platforms:
                     task = asyncio.create_task(
                         self._check_single(username, platform, session)
                     )
                     tasks.append(task)
-            
+
             # Process as completed
             cancelled_count = 0
             for coro in asyncio.as_completed(tasks):
@@ -368,6 +417,29 @@ class Orchestrator:
 
                 if result.exists:
                     results.found_count += 1
+
+                    # Cross-platform discovery: extract linked usernames
+                    if discover and discovered_count < max_discovered:
+                        new_usernames = self._extract_discovered_usernames(result)
+                        for new_u in new_usernames:
+                            if (
+                                new_u.lower() not in searched_usernames
+                                and discovered_count < max_discovered
+                            ):
+                                searched_usernames.add(new_u.lower())
+                                discovered_count += 1
+                                results.variants_searched.append(new_u)
+                                results.total_platforms += len(platforms)
+                                logger.info(
+                                    "Discovered username %r from %s, adding to search",
+                                    new_u,
+                                    result.platform,
+                                )
+                                for platform in platforms:
+                                    new_task = asyncio.create_task(
+                                        self._check_single(new_u, platform, session)
+                                    )
+                                    tasks.append(new_task)
 
                 # Scan for flags in metadata values, URL, and raw response
                 if compiled_patterns:
@@ -401,7 +473,7 @@ class Orchestrator:
                         await task
                     except asyncio.CancelledError:
                         pass
-        
+
         results.elapsed_time = time.monotonic() - start_time
 
         # Strip raw responses from metadata unless explicitly requested,

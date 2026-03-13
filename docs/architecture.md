@@ -102,8 +102,9 @@ print(config.platforms.github.enabled)
 #### UsernameVariants
 
 Generates username permutations with:
-- Leetspeak substitution (a→4, e→3, etc.)
-- Common prefixes/suffixes (real, the, _official)
+- **Basic variants** (always on by default): separator swaps (_, ., -), case changes, first-initial forms (john_doe → jdoe)
+- Leetspeak substitution (a→4, e→3, etc.) — with `--variants` flag
+- Common prefixes/suffixes (real, the, _official) — with `--variants` flag
 - Year suffixes (2020-2025)
 - Separator variants (_, ., -)
 - Jaro-Winkler fuzzy matching
@@ -125,6 +126,7 @@ Manages concurrent async searches with:
 - Flag detection
 - Low-confidence tagging for borderline positive results (checks for profile indicators like images, username mentions, and sufficient text content)
 - Raw response stripping from metadata by default (controlled by `output.include_raw_responses`)
+- **Cross-platform discovery** (`--deep`): extracts linked usernames from found profiles and dynamically adds them to the search queue
 
 ```python
 from sherlockml.enum.orchestrator import Orchestrator
@@ -239,10 +241,11 @@ Social graph analysis:
 
 ```
 1. User Input
-   └── username: "johndoe"
+   └── username: "john_doe"
 
-2. Variant Generation
-   └── ["johndoe", "j0hndoe", "johndoe2024", ...]
+2. Variant Generation (automatic)
+   └── ["john_doe", "johndoe", "john.doe", "john-doe", "jdoe"]
+   └── (with --variants: adds leet, prefixes, suffixes)
 
 3. Platform Selection (RL-powered)
    └── [github, twitter, reddit, ...] ordered by expected value
@@ -250,7 +253,9 @@ Social graph analysis:
 4. Parallel Search (Orchestrator)
    ├── Rate limiting
    ├── Proxy rotation
-   └── Timeout handling
+   ├── Timeout handling
+   └── Cross-platform discovery (--deep): extract linked usernames
+       from found profiles and add new search tasks dynamically
 
 5. Result Processing
    ├── False positive filtering (soft 404, empty pages, redirects, login walls)
