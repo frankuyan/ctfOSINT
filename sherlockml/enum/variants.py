@@ -67,6 +67,52 @@ class UsernameVariants:
         """
         self.fuzzy_threshold = fuzzy_threshold
     
+    def generate_basic(self, base: str) -> list[str]:
+        """Generate lightweight variants by splitting and recombining with separators.
+
+        Always produces a small, high-quality set of alternatives based on the
+        structure of the input username.  This is fast and is called by default
+        even when the ``--variants`` flag is not used.
+
+        Transformations applied:
+        - Split on common separators (``_``, ``.``, ``-``) and rejoin with each
+        - Case variants (lower, original)
+        - Remove all separators (concatenated form)
+        - First-initial + last-name style (``jdoe`` from ``john_doe``)
+
+        Returns:
+            Deduplicated list of valid username variants (excluding the
+            original, which the caller already has).
+        """
+        variants: set[str] = set()
+
+        # Split username on separators
+        parts = re.split(r'[_.\-]', base)
+
+        if len(parts) > 1:
+            # Recombine with each separator style
+            for sep in self.DEFAULT_SEPARATORS:
+                variants.add(sep.join(parts))
+                variants.add(sep.join(p.lower() for p in parts))
+
+            # First-initial variants: jdoe, j_doe, j.doe
+            if len(parts[0]) >= 1:
+                initial = parts[0][0].lower()
+                rest = parts[-1].lower()
+                for sep in self.DEFAULT_SEPARATORS:
+                    variants.add(f"{initial}{sep}{rest}")
+        else:
+            # No separator in original — try adding common splits
+            variants.add(base.lower())
+
+        # Case variant
+        variants.add(base.lower())
+
+        # Remove the original so caller doesn't double-add it
+        variants.discard(base)
+
+        return [v for v in sorted(variants) if v and self._is_valid_username(v)]
+
     def generate(
         self,
         base: str,

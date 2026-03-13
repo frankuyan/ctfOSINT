@@ -65,7 +65,9 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.option('--rate-limit', '-r', type=float, default=None, help='Global requests/sec')
 @click.option('--proxy', type=str, help='Proxy URL (socks5://host:port)')
 @click.option('--wordlist', '-w', type=click.Path(exists=True, path_type=Path), help='Username variants wordlist')
-@click.option('--variants', is_flag=True, help='Auto-generate username variants')
+@click.option('--variants', is_flag=True, help='Auto-generate username variants (leet, prefixes, suffixes)')
+@click.option('--no-variants', is_flag=True, help='Disable automatic basic variant generation')
+@click.option('--deep', is_flag=True, help='Cross-platform discovery: search linked usernames found in profiles')
 @click.option('--verify', is_flag=True, help='Use LLM to verify found profiles are real')
 @click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config)')
 @click.pass_context
@@ -81,17 +83,25 @@ async def search(
     proxy: str | None,
     wordlist: Path | None,
     variants: bool,
+    no_variants: bool,
+    deep: bool,
     verify: bool,
     llm_key: str | None,
 ) -> None:
     """Search for USERNAME across platforms.
-    
+
+    By default, basic separator/case variants are generated automatically
+    (e.g. john_doe -> johndoe, john.doe, john-doe, jdoe).  Use --variants
+    for full expansion (leet, prefixes, suffixes) or --no-variants to search
+    only the exact username.  Use --deep to discover and search linked
+    usernames found in profiles.
+
     Examples:
-    
+
         sherlockml search john_doe
-        
-        sherlockml search john_doe --max-time 120 -o results.json
-        
+
+        sherlockml search john_doe --deep --max-time 120 -o results.json
+
         sherlockml search john_doe --fast-fail --variants
     """
     config: Config = ctx.obj['config']
@@ -117,21 +127,27 @@ async def search(
         config.ctf.fast_fail = True
     
     # Generate usernames to search
+    from sherlockml.enum.variants import UsernameVariants
+    generator = UsernameVariants()
     usernames = [username]
-    
+
+    # Always generate basic separator/case variants unless --no-variants
+    if not no_variants:
+        usernames.extend(generator.generate_basic(username))
+
     if wordlist:
         usernames.extend(wordlist.read_text().strip().split('\n'))
-    
+
     if variants:
-        from sherlockml.enum.variants import UsernameVariants
-        generator = UsernameVariants()
         generated = generator.generate(username, leet=True, include_common=True)
-        usernames.extend(generated[:20])  # Limit variants
-    
+        usernames.extend(generated[:20])  # Limit full variants
+
     usernames = list(dict.fromkeys(usernames))  # Dedupe preserving order
-    
+
     console.print(f"[bold blue]SherlockML[/bold blue] v{__version__}")
-    console.print(f"Searching for [green]{username}[/green] ({len(usernames)} variants)")
+    console.print(f"Searching for [green]{username}[/green] ({len(usernames)} variant{'s' if len(usernames) != 1 else ''})")
+    if deep:
+        console.print("[dim]Deep mode: will search linked usernames discovered in profiles[/dim]")
     console.print()
     
     # Load platforms
@@ -171,6 +187,7 @@ async def search(
             callback=progress_callback,
             fast_fail=fast_fail,
             max_time=max_time,
+            discover=deep,
         )
         
         progress.update(task, completed=True)
