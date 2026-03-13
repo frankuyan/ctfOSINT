@@ -265,7 +265,7 @@ proxy:
 output:
   default_format: json         # json, markdown, graphviz
   pretty_print: true           # Format JSON with indentation
-  include_raw_responses: false # Include raw HTTP responses
+  include_raw_responses: false  # Include raw HTTP responses in output (stripped by default to avoid leaking PII)
   flags_file: ~/.sherlockml/flags.json
   writeup_template: ~/.sherlockml/templates/writeup.md.j2
 ```
@@ -350,7 +350,7 @@ platforms:
     auth_token: ${TWITTER_BEARER_TOKEN}
 ```
 
-**Note:** Environment variable expansion uses `${VAR}` syntax. Undefined variables expand to empty strings.
+**Note:** Environment variable expansion uses `${VAR}` syntax. Undefined variables expand to empty strings and a warning is logged, so you can detect misconfigured tokens or missing secrets early.
 
 Set variables before running:
 

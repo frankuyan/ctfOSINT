@@ -253,7 +253,7 @@ Named Entity Recognition (NER) identifies and classifies entities in text:
 
 | Entity | Pattern | Example |
 |--------|---------|---------|
-| FLAG | `(flag\|ctf\|...)\{[^}]+\}` | `flag{s3cr3t}` |
+| FLAG | `(flag\|ctf\|...)\{[^}]+\}` or prefixed base64 | `flag{s3cr3t}` |
 | EMAIL | `[a-zA-Z0-9._%+-]+@...` | `user@example.com` |
 | HASH_MD5 | `[a-f0-9]{32}` | `d41d8cd98f00b204e9800998ecf8427e` |
 | HASH_SHA1 | `[a-f0-9]{40}` | `da39a3ee5e6b4b0d3255bfef95601890afd80709` |

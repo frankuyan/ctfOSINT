@@ -235,50 +235,54 @@ class RLController:
         success_val = 1 if flag_found else 0
         failure_val = 0 if flag_found else 1
 
-        self.conn.execute(
-            """
-            INSERT INTO platform_stats (name, successes, failures, total_searches,
-                                         total_response_time, last_updated)
-            VALUES (?, ?, ?, 1, ?, ?)
-            ON CONFLICT(name) DO UPDATE SET
-                successes = ROUND(successes * ?) + ?,
-                failures = ROUND(failures * ?) + ?,
-                total_searches = total_searches + 1,
-                total_response_time = total_response_time + ?,
-                last_updated = ?
-            """,
-            (
-                platform,
-                success_val,
-                failure_val,
-                response_time,
-                now,
-                decay,
-                success_val,
-                decay,
-                failure_val,
-                response_time,
-                now,
-            ),
-        )
-        
-        # Record in training history
-        self.conn.execute(
-            """
-            INSERT INTO training_history (timestamp, platform, flag_found,
-                                          response_time, context)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                now,
-                platform,
-                1 if flag_found else 0,
-                response_time,
-                json.dumps(context) if context else None,
-            ),
-        )
-        
-        self.conn.commit()
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO platform_stats (name, successes, failures, total_searches,
+                                             total_response_time, last_updated)
+                VALUES (?, ?, ?, 1, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    successes = ROUND(successes * ?) + ?,
+                    failures = ROUND(failures * ?) + ?,
+                    total_searches = total_searches + 1,
+                    total_response_time = total_response_time + ?,
+                    last_updated = ?
+                """,
+                (
+                    platform,
+                    success_val,
+                    failure_val,
+                    response_time,
+                    now,
+                    decay,
+                    success_val,
+                    decay,
+                    failure_val,
+                    response_time,
+                    now,
+                ),
+            )
+
+            # Record in training history
+            self.conn.execute(
+                """
+                INSERT INTO training_history (timestamp, platform, flag_found,
+                                              response_time, context)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    now,
+                    platform,
+                    1 if flag_found else 0,
+                    response_time,
+                    json.dumps(context) if context else None,
+                ),
+            )
+
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
     
     def train(
         self,

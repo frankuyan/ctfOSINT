@@ -12,14 +12,27 @@ from pydantic import BaseModel, Field, field_validator
 
 
 def expand_env_vars(value: str) -> str:
-    """Expand ${VAR} environment variables in string values."""
-    pattern = re.compile(r'\$\{([^}]+)\}')
-    
+    """Expand ${VAR} environment variables in string values.
+
+    Missing variables are replaced with empty string, but a warning is
+    logged so callers can detect misconfiguration.
+    """
+    import logging
+
+    _env_pattern = re.compile(r'\$\{([^}]+)\}')
+
     def replacer(match: re.Match[str]) -> str:
         var_name = match.group(1)
-        return os.environ.get(var_name, '')
-    
-    return pattern.sub(replacer, value)
+        env_value = os.environ.get(var_name)
+        if env_value is None:
+            logging.getLogger(__name__).warning(
+                "Environment variable %s is not set (referenced in config value)",
+                var_name,
+            )
+            return ''
+        return env_value
+
+    return _env_pattern.sub(replacer, value)
 
 
 def expand_path(path: str) -> Path:

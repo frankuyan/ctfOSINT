@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -232,19 +233,33 @@ class PlatformRegistry:
 
 # Global registry instance
 _registry: PlatformRegistry | None = None
+_registry_lock = threading.Lock()
 
 
 def get_registry() -> PlatformRegistry:
-    """Get the global platform registry.
-    
+    """Get the global platform registry (thread-safe).
+
     Returns:
         Global PlatformRegistry instance
     """
     global _registry
-    
-    if _registry is None:
-        _registry = PlatformRegistry()
-        _registry.discover_builtin()
-        _registry.discover_plugins()
-    
+
+    if _registry is not None:
+        return _registry
+
+    with _registry_lock:
+        # Double-checked locking
+        if _registry is not None:
+            return _registry
+
+        registry = PlatformRegistry()
+        builtin_count = registry.discover_builtin()
+        plugin_count = registry.discover_plugins()
+        logging.getLogger(__name__).info(
+            "Registry initialized: %d built-in, %d plugin platforms",
+            builtin_count,
+            plugin_count,
+        )
+        _registry = registry
+
     return _registry

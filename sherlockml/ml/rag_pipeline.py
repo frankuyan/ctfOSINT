@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,8 +73,9 @@ class RAGPipeline:
         self.model_name = model_name
         self.collection_name = collection_name
         
-        # Initialize embedding model
+        # Initialize embedding model (lazy, thread-safe)
         self._encoder: SentenceTransformer | None = None
+        self._encoder_lock = threading.Lock()
         
         # Initialize ChromaDB
         self.client = chromadb.PersistentClient(
@@ -91,10 +93,13 @@ class RAGPipeline:
     
     @property
     def encoder(self) -> SentenceTransformer:
-        """Lazy load the encoder model."""
-        if self._encoder is None:
-            self._encoder = SentenceTransformer(self.model_name)
-        return self._encoder
+        """Lazy load the encoder model (thread-safe)."""
+        if self._encoder is not None:
+            return self._encoder
+        with self._encoder_lock:
+            if self._encoder is None:
+                self._encoder = SentenceTransformer(self.model_name)
+            return self._encoder
     
     def index(
         self,

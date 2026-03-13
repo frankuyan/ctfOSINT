@@ -121,9 +121,10 @@ Manages concurrent async searches with:
 - Semaphore-controlled parallelism (configurable max)
 - Per-platform rate limiting
 - Proxy support (SOCKS5, Tor)
-- Timeout handling
+- Timeout/deadline handling with proper task cancellation and logging
 - Flag detection
 - Low-confidence tagging for borderline positive results (checks for profile indicators like images, username mentions, and sufficient text content)
+- Raw response stripping from metadata by default (controlled by `output.include_raw_responses`)
 
 ```python
 from sherlockml.enum.orchestrator import Orchestrator
@@ -134,9 +135,11 @@ results = await orchestrator.search(usernames, platforms)
 
 #### PlatformRegistry
 
-Dynamic plugin loading from:
+Thread-safe dynamic plugin loading from:
 - Built-in platforms (`sherlockml/platforms/`)
 - User plugins (`~/.sherlockml/plugins/`)
+
+The global registry singleton (`get_registry()`) uses double-checked locking to ensure thread-safe initialization and logs the number of discovered platforms on first load.
 
 ```python
 from sherlockml.enum.registry import get_registry
@@ -153,7 +156,7 @@ platforms = registry.get_enabled(config)
 
 Semantic search using:
 - ChromaDB for vector storage
-- Sentence Transformers for embeddings
+- Sentence Transformers for embeddings (thread-safe lazy initialization)
 - Incremental indexing
 
 ```python
@@ -169,7 +172,7 @@ results = rag.query("find email addresses", top_k=10)
 Thompson Sampling multi-armed bandit for platform prioritization:
 - Tracks success/failure per platform
 - Balances exploration vs exploitation
-- Persists weights in SQLite
+- Persists weights in SQLite with transactional writes (automatic rollback on failure)
 
 ```python
 from sherlockml.ml.rl_controller import RLController
@@ -344,7 +347,10 @@ The plugin is automatically discovered and loaded.
 
 ## Security Considerations
 
-1. **Credential Storage**: API tokens stored in environment variables
+1. **Credential Storage**: API tokens stored in environment variables; missing variables log a warning
 2. **Rate Limiting**: Built-in to prevent API abuse
 3. **Proxy Support**: Tor integration for anonymization
 4. **Non-root Docker**: Container runs as unprivileged user
+5. **Raw Response Handling**: Raw HTTP responses are stripped from output metadata by default to prevent PII/secret leakage (enable with `output.include_raw_responses: true`)
+6. **Graphviz Export**: The `render_to_image` method validates the output format against an allowlist and resolves file paths to prevent path traversal
+7. **Database Integrity**: RL controller writes are transactional with automatic rollback on failure

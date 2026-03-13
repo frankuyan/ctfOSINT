@@ -84,8 +84,8 @@ class NERExtractor:
             re.compile(r'(flag|ctf|glug|hxp|picoCTF|HTB|THM|OSCTF)\{[^}]+\}', re.IGNORECASE),
             re.compile(r'FLAG\{[^}]+\}'),
             re.compile(r'CTF\{[^}]+\}'),
-            # Base64-encoded flags (require trailing padding)
-            re.compile(r'[A-Za-z0-9+/]{40,}={1,2}'),
+            # Base64-encoded flags: require a flag-like prefix before base64 content
+            re.compile(r'(?:flag|ctf|key|secret|password)[=: ]*[A-Za-z0-9+/]{20,}={1,2}', re.IGNORECASE),
         ],
         "hashes": [
             # MD5

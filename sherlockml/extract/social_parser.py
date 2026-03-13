@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
-from urllib.parse import urlparse
 
 import networkx as nx
 from bs4 import BeautifulSoup
