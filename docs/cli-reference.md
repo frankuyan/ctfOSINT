@@ -45,6 +45,8 @@ sherlockml search [OPTIONS] USERNAME
 | `--variants` | | FLAG | false | Full variant expansion (leet, prefixes, suffixes) |
 | `--no-variants` | | FLAG | false | Disable automatic basic variant generation |
 | `--deep` | | FLAG | false | Cross-platform discovery: search linked usernames found in profiles |
+| `--max-hops` | | INT | 2 | Discovery depth (only with `--deep`). 1 = direct links of seeds; 2 = also follow links of discovered profiles |
+| `--max-discovered` | | INT | 15 | Maximum total discovered usernames across all hops (only with `--deep`) |
 | `--verify` | | FLAG | false | Use LLM to verify found profiles are real |
 | `--llm-key` | | TEXT | - | LLM API key (overrides config, env: SHERLOCKML_LLM_KEY) |
 
@@ -88,7 +90,7 @@ By default, SherlockML generates basic separator and case variants from the inpu
 - **Default**: Basic separator/case variants (small set, fast)
 - **`--variants`**: Full expansion with leetspeak, common prefixes/suffixes (up to 20 extra)
 - **`--no-variants`**: Search only the exact username entered
-- **`--deep`**: Cross-platform discovery — when a profile is found, extract linked usernames from the profile page and search those too (up to 5 discovered usernames)
+- **`--deep`**: Cross-platform discovery — when a profile is found, extract linked usernames from the profile page and search those too. By default follows up to 2 hops (seeds → linked profiles → links of those profiles), capped at 15 total discovered usernames. Tune with `--max-hops` and `--max-discovered`.
 
 When `--verify` is used, results are split into two tables:
 - **Verified Profiles**: Real/suspicious accounts with extracted OSINT details (bio, display name, join date, activity, external links, notable info).

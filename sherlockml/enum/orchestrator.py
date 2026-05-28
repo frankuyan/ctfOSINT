@@ -358,7 +358,8 @@ class Orchestrator:
         flag_patterns: list[str] | None = None,
         max_time: float | None = None,
         discover: bool = False,
-        max_discovered: int = 5,
+        max_discovered: int = 15,
+        max_hops: int = 2,
     ) -> SearchResults:
         """Execute parallel searches across platforms.
 
@@ -371,7 +372,10 @@ class Orchestrator:
             max_time: Maximum time in seconds (None for no limit)
             discover: Enable cross-platform discovery (when a profile is
                 found, extract linked usernames and search those too)
-            max_discovered: Maximum number of discovered usernames to add
+            max_discovered: Maximum total discovered usernames across all hops
+            max_hops: Maximum discovery depth.  Hop 0 = seed usernames the
+                caller passed in; hop 1 = usernames found in hop-0 profiles;
+                etc.  A profile at hop >= max_hops is not mined further.
 
         Returns:
             Aggregated SearchResults
@@ -398,8 +402,10 @@ class Orchestrator:
                 for p in self.config.ctf.flag_patterns
             ]
 
-        # Track all usernames already searched to avoid re-checking
-        searched_usernames: set[str] = set(u.lower() for u in usernames)
+        # Track every username already searched (key: lowercased) along with
+        # the hop depth it was discovered at.  Seeds are hop 0.
+        username_hop: dict[str, int] = {u.lower(): 0 for u in usernames}
+        searched_usernames: set[str] = set(username_hop)
         discovered_count = 0
 
         async with await self._create_session() as session:
@@ -450,28 +456,37 @@ class Orchestrator:
                         results.found_count += 1
 
                         # Cross-platform discovery: extract linked usernames
-                        # and feed new tasks back into `pending`.
+                        # and feed new tasks back into `pending`.  A result
+                        # at hop H spawns hop H+1 tasks; we stop mining once
+                        # H+1 would exceed max_hops or the global cap is hit.
                         if discover and discovered_count < max_discovered:
-                            new_usernames = self._extract_discovered_usernames(result)
-                            for new_u in new_usernames:
-                                if discovered_count >= max_discovered:
-                                    break
-                                key = new_u.lower()
-                                if key in searched_usernames:
-                                    continue
-                                searched_usernames.add(key)
-                                discovered_count += 1
-                                results.variants_searched.append(new_u)
-                                results.total_platforms += len(platforms)
-                                logger.info(
-                                    "Discovered username %r from %s, adding to search",
-                                    new_u,
-                                    result.platform,
-                                )
-                                for platform in platforms:
-                                    pending.add(asyncio.create_task(
-                                        self._check_single(new_u, platform, session)
-                                    ))
+                            current_hop = username_hop.get(
+                                result.username.lower(), 0
+                            )
+                            next_hop = current_hop + 1
+                            if next_hop <= max_hops:
+                                new_usernames = self._extract_discovered_usernames(result)
+                                for new_u in new_usernames:
+                                    if discovered_count >= max_discovered:
+                                        break
+                                    key = new_u.lower()
+                                    if key in searched_usernames:
+                                        continue
+                                    searched_usernames.add(key)
+                                    username_hop[key] = next_hop
+                                    discovered_count += 1
+                                    results.variants_searched.append(new_u)
+                                    results.total_platforms += len(platforms)
+                                    logger.info(
+                                        "Discovered username %r (hop %d) from %s, adding to search",
+                                        new_u,
+                                        next_hop,
+                                        result.platform,
+                                    )
+                                    for platform in platforms:
+                                        pending.add(asyncio.create_task(
+                                            self._check_single(new_u, platform, session)
+                                        ))
 
                     # Scan for flags in metadata values, URL, and raw response
                     if compiled_patterns:
