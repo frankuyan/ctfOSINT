@@ -82,7 +82,14 @@ from sherlockml.enum.variants import UsernameVariants
 
 gen = UsernameVariants()
 
-# Basic generation
+# Lightweight default variants (used automatically by the CLI when neither
+# --variants nor --no-variants is set). Top-15, ranked by Jaro-Winkler
+# similarity to the input. Excludes the input itself.
+basic = gen.generate_basic("john_doe")
+# ['johndoe', 'john.doe', 'doe_john', 'jdoe', 'johnd', 'johndoe1',
+#  'johndoe2024', ...]
+
+# Full generation (triggered by --variants on the CLI)
 variants = gen.generate("johndoe")
 # ['johndoe', 'JOHNDOE', 'Johndoe', ...]
 

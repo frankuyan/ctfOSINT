@@ -97,8 +97,18 @@ This searches for "johndoe" across all enabled platforms.
 # Search with 2-minute timeout and save results
 sherlockml search johndoe --max-time 120 --output results.json
 
-# Generate username variants automatically
+# Full variant expansion (leet, prefixes, suffixes) on top of the defaults
 sherlockml search johndoe --variants
+
+# Exact username only (skip default variant generation)
+sherlockml search johndoe --no-variants
+
+# Cross-platform discovery: follow URL links and bare @handles found
+# on each profile and search those too (up to 2 hops by default)
+sherlockml search johndoe --deep
+
+# Tune discovery depth and total budget
+sherlockml search johndoe --deep --max-hops 3 --max-discovered 25
 
 # Stop on first CTF flag found
 sherlockml search johndoe --fast-fail
@@ -112,6 +122,7 @@ sherlockml search johndoe --proxy socks5://127.0.0.1:9050
 ```
 SherlockML v1.0.0
 Searching for johndoe (15 variants)
+Deep mode: hops≤2, up to 15 discovered usernames
 
 Platforms: 93 enabled
   ✓ github: https://github.com/johndoe
@@ -124,7 +135,12 @@ Results:
   Platforms checked: 93
   Profiles found: 8
   Flags found: 0
+  Contacts discovered: 2
   Time: 12.4s
+
+Contacts:
+  john.doe@protonmail.com
+  jdoe@university.edu
 
 Saved JSON: sherlockml_johndoe.json
 ```

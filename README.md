@@ -26,8 +26,12 @@ pip install -e .
 # Initialize config
 sherlockml init
 
-# Search for a username
+# Search for a username (auto-generates basic variants by default)
 sherlockml search john_doe --max-time 60
+
+# Cross-platform discovery: follow URL links and @handle mentions on
+# found profiles up to N hops, also harvest emails from profile pages
+sherlockml search john_doe --deep --max-hops 2
 
 # Search and verify profiles with LLM
 sherlockml search john_doe --verify --llm-key sk-...
@@ -80,13 +84,16 @@ docker run -v ~/.sherlockml:/root/.sherlockml sherlockml search targetuser
 
 ```bash
 sherlockml search john_doe \
-  --max-time 120 \      # Timeout in seconds
+  --max-time 120 \         # Timeout in seconds
   --output results.json \
-  --format both \       # json, md, or both
-  --fast-fail \         # Stop on first flag
-  --variants \          # Auto-generate variants
-  --rate-limit 10 \     # Requests per second
-  --verify              # LLM verification of found profiles
+  --format both \          # json, md, or both
+  --fast-fail \            # Stop on first flag
+  --variants \             # Full variant expansion (leet, prefixes, suffixes)
+  --deep \                 # Cross-platform discovery from found profiles
+  --max-hops 2 \           # Discovery depth (default 2; only with --deep)
+  --max-discovered 15 \    # Total discovered username cap (only with --deep)
+  --rate-limit 10 \        # Requests per second
+  --verify                 # LLM verification of found profiles
 ```
 
 ## Configuration
