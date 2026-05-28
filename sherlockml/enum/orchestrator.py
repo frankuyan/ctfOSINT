@@ -25,29 +25,49 @@ if TYPE_CHECKING:
 # match, and captures the username portion in group 1.
 _SOCIAL_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE) for p in (
+        # Code hosting
         r'(?<![\w.-])github\.com/([a-zA-Z0-9][a-zA-Z0-9-]{0,38})',
         r'(?<![\w.-])gitlab\.com/([a-zA-Z0-9][a-zA-Z0-9_.-]{1,254})',
         r'(?<![\w.-])bitbucket\.org/([a-zA-Z0-9_-]{1,30})',
         r'(?<![\w.-])keybase\.io/([a-zA-Z0-9_]{2,16})',
+        # Mainstream social
         r'(?<![\w.-])(?:twitter|x)\.com/@?([a-zA-Z0-9_]{1,15})',
         r'(?<![\w.-])instagram\.com/([a-zA-Z0-9_.]{1,30})',
         r'(?<![\w.-])linkedin\.com/in/([a-zA-Z0-9-]{3,100})',
         r'(?<![\w.-])reddit\.com/(?:u|user)/([a-zA-Z0-9_-]{3,20})',
+        r'(?<![\w.-])(?:www\.)?tiktok\.com/@([a-zA-Z0-9_.]{2,24})',
+        r'(?<![\w.-])threads\.net/@([a-zA-Z0-9_.]{1,30})',
+        r'(?<![\w.-])(?:[a-z]{2}\.)?pinterest\.com/([a-zA-Z0-9_]{3,30})',
+        # Video & streaming
         r'(?<![\w.-])youtube\.com/(?:@|c/|user/)([a-zA-Z0-9_-]{2,30})',
         r'(?<![\w.-])twitch\.tv/([a-zA-Z0-9_]{2,25})',
+        r'(?<![\w.-])vimeo\.com/([a-zA-Z0-9-]{3,32})',
+        # Writing / Q&A
         r'(?<![\w.-])dev\.to/([a-zA-Z0-9_]{1,30})',
         r'(?<![\w.-])medium\.com/@([a-zA-Z0-9_.-]{2,30})',
         r'(?<![\w.-])stackoverflow\.com/users/\d+/([a-zA-Z0-9_-]{2,30})',
+        r'(?<![\w.-])lobste\.rs/~([a-zA-Z0-9_-]{2,30})',
+        r'(?<![\w.-])news\.ycombinator\.com/user\?id=([a-zA-Z0-9_-]{2,30})',
+        # Messaging
+        r'(?<![\w.-])(?:t|telegram)\.me/([a-zA-Z][a-zA-Z0-9_]{4,31})',
+        # Audio
+        r'(?<![\w.-])soundcloud\.com/([a-zA-Z0-9_-]{3,25})',
+        # Gaming
+        r'(?<![\w.-])steamcommunity\.com/id/([a-zA-Z0-9_-]{3,32})',
+        # Blogging
+        r'(?<![\w.-])tumblr\.com/([a-zA-Z0-9-]{3,32})',
+        r'(?<![\w.-])([a-zA-Z0-9][a-zA-Z0-9-]{1,31})\.tumblr\.com\b',
+        # Fediverse / Mastodon
         r'(?<![\w.-])bsky\.app/profile/([a-zA-Z0-9.-]{2,40})',
         r'(?<![\w.-])mastodon\.(?:social|online|world|cloud)/@([a-zA-Z0-9_]{1,30})',
-        r'(?<![\w.-])(?:mas\.to|infosec\.exchange|fosstodon\.org)/@([a-zA-Z0-9_]{1,30})',
-        r'(?<![\w.-])news\.ycombinator\.com/user\?id=([a-zA-Z0-9_-]{2,30})',
+        r'(?<![\w.-])(?:mas\.to|infosec\.exchange|fosstodon\.org|mstdn\.social|hachyderm\.io|tech\.lgbt|techhub\.social)/@([a-zA-Z0-9_]{1,30})',
     )
 ]
 
 # Path segments that should never be treated as a username when extracted
 # from a discovered URL.  Expanded from the previous short list.
 _SKIP_USERNAMES: frozenset[str] = frozenset({
+    # Generic site paths
     "about", "help", "login", "signup", "settings", "privacy", "terms",
     "search", "explore", "status", "api", "docs", "blog", "home",
     "tos", "feed", "tags", "trending", "legal", "contact", "press",
@@ -55,6 +75,11 @@ _SKIP_USERNAMES: frozenset[str] = frozenset({
     "discover", "directory", "category", "categories", "tag", "topics",
     "topic", "channel", "channels", "watch", "live", "shorts", "static",
     "assets", "images", "img", "css", "js",
+    # Subdomain / platform-specific noise added with the wider pattern set
+    "www", "staff", "dashboard", "tagged", "register", "auth",
+    "ondemand", "features", "stock", "enterprise",
+    "premium", "tv", "music", "discover-creators", "discover-channels",
+    "trending-topics", "for-you", "foryou", "following",
 })
 
 
