@@ -67,51 +67,72 @@ class UsernameVariants:
         """
         self.fuzzy_threshold = fuzzy_threshold
     
-    def generate_basic(self, base: str) -> list[str]:
-        """Generate lightweight variants by splitting and recombining with separators.
+    # Light digit suffixes used by the basic variant generator.  Kept small
+    # so the default search stays fast; --variants enables the full range.
+    BASIC_DIGIT_SUFFIXES: tuple[str, ...] = ('1', '01', '2024', '2025')
 
-        Always produces a small, high-quality set of alternatives based on the
-        structure of the input username.  This is fast and is called by default
-        even when the ``--variants`` flag is not used.
+    def generate_basic(self, base: str, *, max_variants: int = 15) -> list[str]:
+        """Generate lightweight variants ranked by similarity to the input.
+
+        Always produces a small, high-quality set of alternatives based on
+        the structure of the input username.  This runs by default even
+        without the ``--variants`` flag.
 
         Transformations applied:
-        - Split on common separators (``_``, ``.``, ``-``) and rejoin with each
-        - Case variants (lower, original)
-        - Remove all separators (concatenated form)
+        - Recombine the split parts with each separator style (``_`` ``.`` ``-`` and concatenated)
+        - Lowercase form
+        - Reversed parts (``doe_john`` from ``john_doe``) — common in real-world username reuse
         - First-initial + last-name style (``jdoe`` from ``john_doe``)
+        - Reverse-initial (``johnd`` from ``john_doe``)
+        - Light digit suffixes (``alice1``, ``alice01``, ``alice2024``, ``alice2025``)
 
-        Returns:
-            Deduplicated list of valid username variants (excluding the
-            original, which the caller already has).
+        The final set is filtered for platform-validity, ranked by
+        Jaro-Winkler similarity to the input, and truncated to
+        ``max_variants``.  The original ``base`` is excluded so the caller
+        does not double-add it.
         """
         variants: set[str] = set()
-
-        # Split username on separators
-        parts = re.split(r'[_.\-]', base)
+        parts = [p for p in re.split(r'[_.\-]', base) if p]
+        base_lower = base.lower()
 
         if len(parts) > 1:
-            # Recombine with each separator style
+            # Recombine with each separator style (case-preserving + lowercase)
             for sep in self.DEFAULT_SEPARATORS:
                 variants.add(sep.join(parts))
                 variants.add(sep.join(p.lower() for p in parts))
 
-            # First-initial variants: jdoe, j_doe, j.doe
-            if len(parts[0]) >= 1:
-                initial = parts[0][0].lower()
-                rest = parts[-1].lower()
-                for sep in self.DEFAULT_SEPARATORS:
-                    variants.add(f"{initial}{sep}{rest}")
-        else:
-            # No separator in original — try adding common splits
-            variants.add(base.lower())
+            # Reversed parts (lowercased)
+            reversed_lower = [p.lower() for p in reversed(parts)]
+            for sep in self.DEFAULT_SEPARATORS:
+                variants.add(sep.join(reversed_lower))
 
-        # Case variant
-        variants.add(base.lower())
+            # First-initial + last-name: jdoe, j_doe, j.doe
+            initial = parts[0][0].lower()
+            last = parts[-1].lower()
+            for sep in self.DEFAULT_SEPARATORS:
+                variants.add(f"{initial}{sep}{last}")
 
-        # Remove the original so caller doesn't double-add it
+            # First + last-initial: johnd, john_d, john.d
+            first = parts[0].lower()
+            last_initial = parts[-1][0].lower()
+            for sep in self.DEFAULT_SEPARATORS:
+                variants.add(f"{first}{sep}{last_initial}")
+
+        # Always include the lowercased form
+        variants.add(base_lower)
+
+        # Light digit suffixes on the canonical (concatenated) form.  Use
+        # the concatenated form so we get `johndoe2024`, not
+        # `john_doe2024` (less plausible).
+        canonical = ''.join(p.lower() for p in parts) if parts else base_lower
+        for suffix in self.BASIC_DIGIT_SUFFIXES:
+            variants.add(f"{canonical}{suffix}")
+
         variants.discard(base)
 
-        return [v for v in sorted(variants) if v and self._is_valid_username(v)]
+        valid = [v for v in variants if v and self._is_valid_username(v)]
+        ranked = self.rank_by_similarity(valid, base)
+        return [v for v, _ in ranked[:max_variants]]
 
     def generate(
         self,
