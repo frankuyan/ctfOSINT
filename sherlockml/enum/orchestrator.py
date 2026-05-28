@@ -20,6 +20,44 @@ if TYPE_CHECKING:
     from sherlockml.enum.platform_base import BasePlatform, PlatformResult
 
 
+# Per-platform URL patterns for cross-platform discovery.  Each pattern uses
+# a left-boundary look-behind so look-alike domains (notgithub.com) don't
+# match, and captures the username portion in group 1.
+_SOCIAL_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p, re.IGNORECASE) for p in (
+        r'(?<![\w.-])github\.com/([a-zA-Z0-9][a-zA-Z0-9-]{0,38})',
+        r'(?<![\w.-])gitlab\.com/([a-zA-Z0-9][a-zA-Z0-9_.-]{1,254})',
+        r'(?<![\w.-])bitbucket\.org/([a-zA-Z0-9_-]{1,30})',
+        r'(?<![\w.-])keybase\.io/([a-zA-Z0-9_]{2,16})',
+        r'(?<![\w.-])(?:twitter|x)\.com/@?([a-zA-Z0-9_]{1,15})',
+        r'(?<![\w.-])instagram\.com/([a-zA-Z0-9_.]{1,30})',
+        r'(?<![\w.-])linkedin\.com/in/([a-zA-Z0-9-]{3,100})',
+        r'(?<![\w.-])reddit\.com/(?:u|user)/([a-zA-Z0-9_-]{3,20})',
+        r'(?<![\w.-])youtube\.com/(?:@|c/|user/)([a-zA-Z0-9_-]{2,30})',
+        r'(?<![\w.-])twitch\.tv/([a-zA-Z0-9_]{2,25})',
+        r'(?<![\w.-])dev\.to/([a-zA-Z0-9_]{1,30})',
+        r'(?<![\w.-])medium\.com/@([a-zA-Z0-9_.-]{2,30})',
+        r'(?<![\w.-])stackoverflow\.com/users/\d+/([a-zA-Z0-9_-]{2,30})',
+        r'(?<![\w.-])bsky\.app/profile/([a-zA-Z0-9.-]{2,40})',
+        r'(?<![\w.-])mastodon\.(?:social|online|world|cloud)/@([a-zA-Z0-9_]{1,30})',
+        r'(?<![\w.-])(?:mas\.to|infosec\.exchange|fosstodon\.org)/@([a-zA-Z0-9_]{1,30})',
+        r'(?<![\w.-])news\.ycombinator\.com/user\?id=([a-zA-Z0-9_-]{2,30})',
+    )
+]
+
+# Path segments that should never be treated as a username when extracted
+# from a discovered URL.  Expanded from the previous short list.
+_SKIP_USERNAMES: frozenset[str] = frozenset({
+    "about", "help", "login", "signup", "settings", "privacy", "terms",
+    "search", "explore", "status", "api", "docs", "blog", "home",
+    "tos", "feed", "tags", "trending", "legal", "contact", "press",
+    "careers", "pricing", "download", "popular", "new", "top", "all",
+    "discover", "directory", "category", "categories", "tag", "topics",
+    "topic", "channel", "channels", "watch", "live", "shorts", "static",
+    "assets", "images", "img", "css", "js",
+})
+
+
 @dataclass
 class SearchResult:
     """Result for a single username on a single platform."""
@@ -290,13 +328,6 @@ class Orchestrator:
         usernames on other platforms.  Used by cross-platform discovery to
         dynamically expand the search.
         """
-        _SOCIAL_RE = re.compile(
-            r'(?:github|twitter|x|reddit|instagram|linkedin|mastodon|gitlab'
-            r'|bitbucket|keybase|hackernews|bluesky|youtube|twitch|medium'
-            r'|dev\.to|stackoverflow)\.com'
-            r'/(?:@|u/|user/|in/)?([a-zA-Z0-9_.-]{2,30})',
-            re.IGNORECASE,
-        )
         found: set[str] = set()
         texts: list[str] = []
 
@@ -310,15 +341,11 @@ class Orchestrator:
                 texts.append(v)
 
         for text in texts:
-            for m in _SOCIAL_RE.finditer(text):
-                username = m.group(1).rstrip("/").lower()
-                # Skip common non-username paths
-                if username not in (
-                    "about", "help", "login", "signup", "settings",
-                    "privacy", "terms", "search", "explore", "status",
-                    "api", "docs", "blog",
-                ):
-                    found.add(username)
+            for pattern in _SOCIAL_PATTERNS:
+                for m in pattern.finditer(text):
+                    candidate = m.group(1).lower()
+                    if candidate and candidate not in _SKIP_USERNAMES:
+                        found.add(candidate)
 
         return found
 
@@ -376,57 +403,63 @@ class Orchestrator:
         discovered_count = 0
 
         async with await self._create_session() as session:
-            # Create all tasks
-            tasks: list[asyncio.Task[SearchResult]] = []
+            pending: set[asyncio.Task[SearchResult]] = set()
 
             for username in usernames:
                 for platform in platforms:
-                    task = asyncio.create_task(
+                    pending.add(asyncio.create_task(
                         self._check_single(username, platform, session)
-                    )
-                    tasks.append(task)
+                    ))
 
-            # Process as completed
             cancelled_count = 0
-            for coro in asyncio.as_completed(tasks):
-                # Check deadline before awaiting next result
-                if deadline and time.monotonic() > deadline:
-                    for task in tasks:
-                        if not task.done():
-                            task.cancel()
-                            cancelled_count += 1
-                    if cancelled_count:
-                        logger.info(
-                            "Deadline exceeded, cancelled %d remaining tasks",
-                            cancelled_count,
-                        )
+            stop = False
+
+            while pending and not stop:
+                # Bound the wait by the remaining deadline so a hung task
+                # cannot keep us past max_time.
+                timeout: float | None = None
+                if deadline is not None:
+                    timeout = deadline - time.monotonic()
+                    if timeout <= 0:
+                        break
+
+                done, pending = await asyncio.wait(
+                    pending,
+                    timeout=timeout,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if not done:
+                    # Deadline elapsed before anything finished.
                     break
 
-                try:
-                    result = await coro
-                except asyncio.CancelledError:
-                    cancelled_count += 1
-                    continue
+                for task in done:
+                    try:
+                        result = task.result()
+                    except asyncio.CancelledError:
+                        cancelled_count += 1
+                        continue
 
-                results.results.append(result)
+                    results.results.append(result)
 
-                if result.error is None:
-                    results.successful_checks += 1
-                else:
-                    results.errors.append(f"{result.platform}: {result.error}")
+                    if result.error is None:
+                        results.successful_checks += 1
+                    else:
+                        results.errors.append(f"{result.platform}: {result.error}")
 
-                if result.exists:
-                    results.found_count += 1
+                    if result.exists:
+                        results.found_count += 1
 
-                    # Cross-platform discovery: extract linked usernames
-                    if discover and discovered_count < max_discovered:
-                        new_usernames = self._extract_discovered_usernames(result)
-                        for new_u in new_usernames:
-                            if (
-                                new_u.lower() not in searched_usernames
-                                and discovered_count < max_discovered
-                            ):
-                                searched_usernames.add(new_u.lower())
+                        # Cross-platform discovery: extract linked usernames
+                        # and feed new tasks back into `pending`.
+                        if discover and discovered_count < max_discovered:
+                            new_usernames = self._extract_discovered_usernames(result)
+                            for new_u in new_usernames:
+                                if discovered_count >= max_discovered:
+                                    break
+                                key = new_u.lower()
+                                if key in searched_usernames:
+                                    continue
+                                searched_usernames.add(key)
                                 discovered_count += 1
                                 results.variants_searched.append(new_u)
                                 results.total_platforms += len(platforms)
@@ -436,43 +469,43 @@ class Orchestrator:
                                     result.platform,
                                 )
                                 for platform in platforms:
-                                    new_task = asyncio.create_task(
+                                    pending.add(asyncio.create_task(
                                         self._check_single(new_u, platform, session)
-                                    )
-                                    tasks.append(new_task)
+                                    ))
 
-                # Scan for flags in metadata values, URL, and raw response
-                if compiled_patterns:
-                    texts_to_scan: list[str] = []
-                    if result.url:
-                        texts_to_scan.append(result.url)
-                    if result.metadata:
-                        for field_value in result.metadata.values():
-                            if isinstance(field_value, str):
-                                texts_to_scan.append(field_value)
-                    for text in texts_to_scan:
-                        for pattern in compiled_patterns:
-                            matches = pattern.findall(text)
-                            results.flags_found.extend(matches)
+                    # Scan for flags in metadata values, URL, and raw response
+                    if compiled_patterns:
+                        texts_to_scan: list[str] = []
+                        if result.url:
+                            texts_to_scan.append(result.url)
+                        if result.metadata:
+                            for field_value in result.metadata.values():
+                                if isinstance(field_value, str):
+                                    texts_to_scan.append(field_value)
+                        for text in texts_to_scan:
+                            for pattern in compiled_patterns:
+                                matches = pattern.findall(text)
+                                results.flags_found.extend(matches)
 
-                # Callback
-                if callback:
-                    callback(result)
+                    if callback:
+                        callback(result)
 
-                # Fast fail on flag found
-                if fast_fail and results.flags_found:
-                    for task in tasks:
-                        if not task.done():
-                            task.cancel()
-                    break
+                    if fast_fail and results.flags_found:
+                        stop = True
+                        break
 
-            # Await any remaining cancelled tasks to suppress warnings
-            for task in tasks:
+            # Cancel anything still outstanding (deadline hit or fast-fail).
+            for task in pending:
                 if not task.done():
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+                    task.cancel()
+                    cancelled_count += 1
+            if cancelled_count:
+                logger.info("Cancelled %d outstanding tasks", cancelled_count)
+            for task in pending:
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
         results.elapsed_time = time.monotonic() - start_time
 

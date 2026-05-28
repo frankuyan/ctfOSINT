@@ -104,8 +104,11 @@ async def search(
 
         sherlockml search john_doe --fast-fail --variants
     """
+    if variants and no_variants:
+        raise click.UsageError("--variants and --no-variants are mutually exclusive")
+
     config: Config = ctx.obj['config']
-    
+
     # Override config with CLI options
     if rate_limit is not None:
         config.search.default_rate_limit = rate_limit
@@ -140,7 +143,10 @@ async def search(
 
     if variants:
         generated = generator.generate(username, leet=True, include_common=True)
-        usernames.extend(generated[:20])  # Limit full variants
+        # Pick the 20 most similar to the input rather than the alphabetically
+        # first 20, which otherwise favours digit-prefixed leet forms.
+        ranked = generator.rank_by_similarity(generated, username)
+        usernames.extend(v for v, _ in ranked[:20])
 
     usernames = list(dict.fromkeys(usernames))  # Dedupe preserving order
 
