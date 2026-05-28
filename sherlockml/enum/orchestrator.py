@@ -83,6 +83,29 @@ _SKIP_USERNAMES: frozenset[str] = frozenset({
 })
 
 
+# Email addresses extracted from profile pages.  Standard local@domain.tld
+# shape with conservative bounds; the TLD must be 2-24 letters to reject
+# accidental matches in code snippets like `obj.foo`.
+_EMAIL_RE: re.Pattern[str] = re.compile(
+    r'\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,24})\b',
+    re.IGNORECASE,
+)
+
+# Bare @handle mentions in bios.  Reject anything preceded by '@', a word
+# char, '/' or '.' so we skip mastodon-style `@user@host` (second handle),
+# email locals (alice@gmail.com), URL paths (foo/@alice) and decimals.
+_HANDLE_RE: re.Pattern[str] = re.compile(
+    r'(?<![@\w/.])@([a-zA-Z][a-zA-Z0-9_]{2,29})\b',
+)
+
+# Email locals that almost never represent a real person.
+_NOISY_EMAIL_LOCALS: frozenset[str] = frozenset({
+    "noreply", "no-reply", "donotreply", "do-not-reply",
+    "support", "info", "admin", "webmaster", "postmaster",
+    "mailer-daemon", "hello", "contact", "abuse", "help",
+})
+
+
 @dataclass
 class SearchResult:
     """Result for a single username on a single platform."""
@@ -108,7 +131,8 @@ class SearchResults:
     errors: list[str] = field(default_factory=list)
     elapsed_time: float = 0.0
     flags_found: list[str] = field(default_factory=list)
-    
+    contacts: list[str] = field(default_factory=list)
+
     @property
     def found_results(self) -> list[SearchResult]:
         """Get only results where username exists."""
@@ -147,6 +171,7 @@ class SearchResults:
                 "elapsed_time": self.elapsed_time,
             },
             "flags_found": self.flags_found,
+            "contacts": self.contacts,
         }
 
 
@@ -346,16 +371,9 @@ class Orchestrator:
         return confidence
 
     @staticmethod
-    def _extract_discovered_usernames(result: "SearchResult") -> set[str]:
-        """Extract additional usernames from a found profile's metadata.
-
-        Scans raw HTML responses and metadata for social links that contain
-        usernames on other platforms.  Used by cross-platform discovery to
-        dynamically expand the search.
-        """
-        found: set[str] = set()
+    def _collect_searchable_text(result: "SearchResult") -> list[str]:
+        """Gather every text blob worth scanning on a profile result."""
         texts: list[str] = []
-
         raw = result.metadata.get("_raw_response", "")
         if raw:
             texts.append(raw)
@@ -364,14 +382,46 @@ class Orchestrator:
         for v in result.metadata.values():
             if isinstance(v, str) and len(v) < 500:
                 texts.append(v)
+        return texts
 
-        for text in texts:
+    @staticmethod
+    def _extract_discovered_usernames(result: "SearchResult") -> set[str]:
+        """Extract additional usernames from a found profile's metadata.
+
+        Scans raw HTML responses and metadata for two kinds of identifiers:
+        social-platform URLs (via ``_SOCIAL_PATTERNS``) and bare ``@handle``
+        mentions in bio text (via ``_HANDLE_RE``).  Both are returned as
+        candidate seeds for cross-platform discovery.
+        """
+        found: set[str] = set()
+        for text in Orchestrator._collect_searchable_text(result):
             for pattern in _SOCIAL_PATTERNS:
                 for m in pattern.finditer(text):
                     candidate = m.group(1).lower()
                     if candidate and candidate not in _SKIP_USERNAMES:
                         found.add(candidate)
+            for m in _HANDLE_RE.finditer(text):
+                handle = m.group(1).lower()
+                if handle not in _SKIP_USERNAMES:
+                    found.add(handle)
+        return found
 
+    @staticmethod
+    def _extract_contacts(result: "SearchResult") -> set[str]:
+        """Extract contact emails from a found profile's metadata.
+
+        Emails are evidence, not seeds: they're returned for the final
+        report but never fed back into the discovery queue.  Generic
+        role addresses (noreply@, support@, ...) are filtered out.
+        """
+        found: set[str] = set()
+        for text in Orchestrator._collect_searchable_text(result):
+            for m in _EMAIL_RE.finditer(text):
+                email = m.group(1).lower()
+                local = email.split("@", 1)[0]
+                if local in _NOISY_EMAIL_LOCALS:
+                    continue
+                found.add(email)
         return found
 
     async def search(
@@ -479,6 +529,12 @@ class Orchestrator:
 
                     if result.exists:
                         results.found_count += 1
+
+                        # Email harvest (cheap, always-on; doesn't feed
+                        # the discovery queue, only the final report).
+                        for email in self._extract_contacts(result):
+                            if email not in results.contacts:
+                                results.contacts.append(email)
 
                         # Cross-platform discovery: extract linked usernames
                         # and feed new tasks back into `pending`.  A result

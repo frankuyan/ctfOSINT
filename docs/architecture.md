@@ -126,7 +126,8 @@ Manages concurrent async searches with:
 - Flag detection
 - Low-confidence tagging for borderline positive results (checks for profile indicators like images, username mentions, and sufficient text content)
 - Raw response stripping from metadata by default (controlled by `output.include_raw_responses`)
-- **Cross-platform discovery** (`--deep`): extracts linked usernames from found profiles and dynamically adds them to the search queue
+- **Cross-platform discovery** (`--deep`): extracts linked usernames and bare `@handle` mentions from found profiles and dynamically adds them to the search queue (bounded by `--max-hops` and `--max-discovered`)
+- **Contact harvesting** (always-on for `result.exists` pages): extracts non-role email addresses from found profile pages and surfaces them in `results.contacts`
 
 ```python
 from sherlockml.enum.orchestrator import Orchestrator
