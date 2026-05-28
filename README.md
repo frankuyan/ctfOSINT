@@ -8,6 +8,9 @@
 ## Features
 
 - 🔍 **Smart Enumeration**: Search 95 built-in platforms with async parallelism
+- 🌐 **Active Search**: Aggressive default variant generation (reversed parts, initial forms, digit suffixes) ranked by Jaro-Winkler similarity, plus `--variants` for full expansion (leet, prefixes, suffixes)
+- 🕸️ **Cross-Platform Discovery** (`--deep`): Multi-hop traversal across ~28 platform URL patterns + bare `@handle` mentions in bios. Tunable depth via `--max-hops` and `--max-discovered`
+- 📇 **Contact Harvesting**: Non-role email addresses are auto-extracted from found profile pages and surfaced in the report
 - 🌍 **International Coverage**: Chinese, Russian, Japanese, Korean, and European platforms
 - 🛡️ **Advanced False Positive Detection**: Soft 404s, empty pages, login walls, redirect detection, and multilingual "not found" patterns
 - 🤖 **LLM Profile Verification**: Use OpenAI, Anthropic, Gemini, or local models to verify if found accounts are real or empty
@@ -16,6 +19,7 @@
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
 - 📊 **Rich Output**: JSON reports, Graphviz diagrams, Markdown writeups
 - 🐳 **Docker Ready**: Multi-stage build with Tor support
+- ✅ **Well-Tested**: 147 tests covering variant generation, URL/handle/email extraction, and platform pattern regressions
 
 ## Quick Start
 
