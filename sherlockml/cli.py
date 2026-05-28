@@ -321,7 +321,15 @@ async def search(
     console.print(f"  Platforms checked: {results.total_platforms}")
     console.print(f"  Profiles found: {results.found_count}")
     console.print(f"  Flags found: {len(results.flags_found)}")
+    if results.contacts:
+        console.print(f"  Contacts discovered: {len(results.contacts)}")
     console.print(f"  Time: {results.elapsed_time:.1f}s")
+
+    if results.contacts:
+        console.print()
+        console.print("[bold]Contacts:[/bold]")
+        for email in results.contacts:
+            console.print(f"  [cyan]{email}[/cyan]")
 
     # Show verification summary if we ran it
     if verification_results:
