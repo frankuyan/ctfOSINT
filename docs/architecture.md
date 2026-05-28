@@ -102,12 +102,17 @@ print(config.platforms.github.enabled)
 #### UsernameVariants
 
 Generates username permutations with:
-- **Basic variants** (always on by default): separator swaps (_, ., -), case changes, first-initial forms (john_doe → jdoe)
+- **Basic variants** (always on by default, top-15 ranked by Jaro-Winkler similarity to the input):
+  - Separator swaps (`_`, `.`, `-`, concatenated)
+  - Case changes (lowercase form)
+  - Reversed parts (`john_doe` → `doe_john`, `doejohn`, `doe.john`)
+  - First-initial + last-name (`john_doe` → `jdoe`, `j_doe`, `j.doe`)
+  - First + last-initial (`john_doe` → `johnd`, `john_d`, `john.d`)
+  - Light digit suffixes (`alice` → `alice1`, `alice01`, `alice2024`, `alice2025`)
 - Leetspeak substitution (a→4, e→3, etc.) — with `--variants` flag
 - Common prefixes/suffixes (real, the, _official) — with `--variants` flag
-- Year suffixes (2020-2025)
-- Separator variants (_, ., -)
-- Jaro-Winkler fuzzy matching
+- Full year-suffix sweep (e.g. 2020-2025) — with `--variants` flag
+- Jaro-Winkler fuzzy matching for similarity-based ranking
 
 ```python
 from sherlockml.enum.variants import UsernameVariants
@@ -244,9 +249,10 @@ Social graph analysis:
 1. User Input
    └── username: "john_doe"
 
-2. Variant Generation (automatic)
-   └── ["john_doe", "johndoe", "john.doe", "john-doe", "jdoe"]
-   └── (with --variants: adds leet, prefixes, suffixes)
+2. Variant Generation (automatic, ranked by Jaro-Winkler, top-15)
+   └── ["johndoe", "john.doe", "john-doe", "jdoe", "johnd",
+        "doe_john", "doejohn", "johndoe1", "johndoe2024", ...]
+   └── (with --variants: adds leet, prefixes, suffixes, full year sweep)
 
 3. Platform Selection (RL-powered)
    └── [github, twitter, reddit, ...] ordered by expected value
@@ -255,8 +261,11 @@ Social graph analysis:
    ├── Rate limiting
    ├── Proxy rotation
    ├── Timeout handling
-   └── Cross-platform discovery (--deep): extract linked usernames
-       from found profiles and add new search tasks dynamically
+   ├── Cross-platform discovery (--deep, --max-hops, --max-discovered):
+   │   extract linked usernames + bare @handle mentions from found
+   │   profiles and add new search tasks dynamically across hops
+   └── Contact harvesting (always-on for found profiles):
+       extract non-role emails into results.contacts
 
 5. Result Processing
    ├── False positive filtering (soft 404, empty pages, redirects, login walls)

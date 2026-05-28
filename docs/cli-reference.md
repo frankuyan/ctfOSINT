@@ -85,12 +85,14 @@ sherlockml search johndoe --verify
 
 **Username Variant Behavior:**
 
-By default, SherlockML generates basic separator and case variants from the input username. For example, `john_doe` automatically produces `johndoe`, `john.doe`, `john-doe`, `jdoe`, etc. This means more platforms are checked with common username patterns without any extra flags.
+By default, SherlockML generates up to ~15 high-quality variants from the input username, ranked by Jaro-Winkler similarity. For `john_doe` this includes separator swaps (`johndoe`, `john.doe`, `john-doe`), case changes, reversed parts (`doe_john`, `doejohn`), first-initial and reverse-initial forms (`jdoe`, `johnd`), and light digit suffixes (`johndoe1`, `johndoe2024`). For a single-part input like `alice`, default variants are the digit-suffix forms (`alice1`, `alice01`, `alice2024`, `alice2025`).
 
-- **Default**: Basic separator/case variants (small set, fast)
-- **`--variants`**: Full expansion with leetspeak, common prefixes/suffixes (up to 20 extra)
-- **`--no-variants`**: Search only the exact username entered
-- **`--deep`**: Cross-platform discovery — when a profile is found, extract linked usernames from the profile page and search those too. By default follows up to 2 hops (seeds → linked profiles → links of those profiles), capped at 15 total discovered usernames. Tune with `--max-hops` and `--max-discovered`.
+- **Default**: Basic similarity-ranked variants (separators, case, reversed parts, initials, light digit suffixes) — up to 15
+- **`--variants`**: Full expansion with leetspeak, common prefixes/suffixes, and a wider year sweep (up to 20 extra, also ranked by similarity)
+- **`--no-variants`**: Search only the exact username entered (mutually exclusive with `--variants`)
+- **`--deep`**: Cross-platform discovery — when a profile is found, extract linked usernames and bare `@handle` mentions from the profile page and search those too. By default follows up to 2 hops (seeds → linked profiles → links of those profiles), capped at 15 total discovered usernames. Tune with `--max-hops` and `--max-discovered`.
+
+When a profile is found, SherlockML also harvests any non-role email addresses (`alice@protonmail.com`, skipping `noreply@`/`support@`/etc.) from the profile page and surfaces them in a `Contacts` section of the result.
 
 When `--verify` is used, results are split into two tables:
 - **Verified Profiles**: Real/suspicious accounts with extracted OSINT details (bio, display name, join date, activity, external links, notable info).
