@@ -68,6 +68,8 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.option('--variants', is_flag=True, help='Auto-generate username variants (leet, prefixes, suffixes)')
 @click.option('--no-variants', is_flag=True, help='Disable automatic basic variant generation')
 @click.option('--deep', is_flag=True, help='Cross-platform discovery: search linked usernames found in profiles')
+@click.option('--max-hops', type=int, default=2, show_default=True, help='Discovery depth (only meaningful with --deep). 1 = one hop from seeds; 2 = follow links of discovered profiles too')
+@click.option('--max-discovered', type=int, default=15, show_default=True, help='Maximum total discovered usernames across all hops (only meaningful with --deep)')
 @click.option('--verify', is_flag=True, help='Use LLM to verify found profiles are real')
 @click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config)')
 @click.pass_context
@@ -85,6 +87,8 @@ async def search(
     variants: bool,
     no_variants: bool,
     deep: bool,
+    max_hops: int,
+    max_discovered: int,
     verify: bool,
     llm_key: str | None,
 ) -> None:
@@ -153,7 +157,9 @@ async def search(
     console.print(f"[bold blue]SherlockML[/bold blue] v{__version__}")
     console.print(f"Searching for [green]{username}[/green] ({len(usernames)} variant{'s' if len(usernames) != 1 else ''})")
     if deep:
-        console.print("[dim]Deep mode: will search linked usernames discovered in profiles[/dim]")
+        console.print(
+            f"[dim]Deep mode: hops≤{max_hops}, up to {max_discovered} discovered usernames[/dim]"
+        )
     console.print()
     
     # Load platforms
@@ -194,6 +200,8 @@ async def search(
             fast_fail=fast_fail,
             max_time=max_time,
             discover=deep,
+            max_hops=max_hops,
+            max_discovered=max_discovered,
         )
         
         progress.update(task, completed=True)
