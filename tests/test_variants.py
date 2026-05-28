@@ -124,3 +124,79 @@ class TestParseYears:
         """Test inverted range raises error."""
         with pytest.raises(ValueError):
             parse_years("2025-2020")
+
+
+class TestGenerateBasic:
+    """Tests for the lightweight default variant generator."""
+
+    def test_multi_part_separator_swaps(self):
+        gen = UsernameVariants()
+        out = set(gen.generate_basic("john_doe", max_variants=99))
+        assert "johndoe" in out
+        assert "john.doe" in out
+        assert "john-doe" in out
+
+    def test_multi_part_reversed(self):
+        gen = UsernameVariants()
+        out = set(gen.generate_basic("john_doe", max_variants=99))
+        assert any(v in out for v in ("doe_john", "doejohn", "doe.john", "doe-john"))
+
+    def test_multi_part_first_initial(self):
+        gen = UsernameVariants()
+        out = set(gen.generate_basic("john_doe", max_variants=99))
+        assert any(v in out for v in ("jdoe", "j_doe", "j.doe", "j-doe"))
+
+    def test_multi_part_reverse_initial(self):
+        gen = UsernameVariants()
+        out = set(gen.generate_basic("john_doe", max_variants=99))
+        assert any(v in out for v in ("johnd", "john_d", "john.d", "john-d"))
+
+    def test_digit_suffixes(self):
+        gen = UsernameVariants()
+        out = set(gen.generate_basic("alice", max_variants=99))
+        assert {"alice1", "alice01", "alice2024", "alice2025"}.issubset(out)
+
+    def test_excludes_original(self):
+        gen = UsernameVariants()
+        assert "john_doe" not in gen.generate_basic("john_doe", max_variants=99)
+        assert "alice" not in gen.generate_basic("alice", max_variants=99)
+
+    def test_max_variants_cap(self):
+        gen = UsernameVariants()
+        out = gen.generate_basic("john_doe", max_variants=5)
+        assert len(out) <= 5
+
+    def test_leading_trailing_separators_degrade_gracefully(self):
+        gen = UsernameVariants()
+        # '_alice_' -> parts ['', 'alice', ''] -> filtered to ['alice'] -> single-part path
+        out = gen.generate_basic("_alice_", max_variants=99)
+        assert all(v for v in out), "empty string leaked into variants"
+        assert "alice1" in out
+
+    def test_three_part_name(self):
+        gen = UsernameVariants()
+        out = set(gen.generate_basic("john.q.doe", max_variants=99))
+        assert "johnqdoe" in out  # concatenated
+        # Reversed full: doe.q.john / doe_q_john / etc.
+        assert any(v in out for v in ("doe.q.john", "doe_q_john", "doe-q-john", "doeqjohn"))
+
+    def test_only_valid_usernames_returned(self):
+        gen = UsernameVariants()
+        # All variants should pass _is_valid_username (no consecutive separators, len <= 30)
+        for base in ("john_doe", "alice", "JohnDoe", "_alice_", "a_b_c_d"):
+            for v in gen.generate_basic(base, max_variants=99):
+                assert "__" not in v and ".." not in v and "--" not in v
+                assert 1 <= len(v) <= 30
+
+
+class TestExistingGenerateNotRegressed:
+    """Smoke-checks that the wider generate() path still does what it did."""
+
+    def test_generate_returns_input(self):
+        gen = UsernameVariants()
+        assert "testuser" in gen.generate("testuser")
+
+    def test_generate_with_leet(self):
+        gen = UsernameVariants()
+        out = gen.generate("test", leet=True)
+        assert any(c.isdigit() for v in out for c in v)
