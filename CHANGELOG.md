@@ -39,7 +39,10 @@ by intent (Added / Changed / Fixed) under each release.
   input, and capped at `max_variants` (default 15).
 - **34 new tests** covering `generate_basic`, the per-platform extractors,
   email/handle/contact extraction, the shared text-collection helper, the
-  skip list, and pattern-count regressions. Total suite now: 147 tests.
+  skip list, and pattern-count regressions.
+- **15 further tests** for the shared flag module (`extract_flags` full-match
+  behaviour, including user-supplied capturing-group patterns) and the
+  orchestrator's `_scan_flags` helper. Total suite now: 162 tests.
 
 ### Changed
 
@@ -54,6 +57,29 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **Flag detection only captured the flag prefix, not the flag.** The default
+  flag regex wrote its alternation as a *capturing* group
+  (`(flag|ctf|…)\{…\}`), and every scanner used `re.findall`, which returns
+  only captured groups — so `flag{s3cr3t}` was recorded as `flag`. All flag
+  extraction now goes through a shared `sherlockml.flags` module
+  (`compile_flag_patterns` / `extract_flags`) that returns the full match via
+  `finditer` + `group(0)`, so even user-supplied patterns with capturing
+  groups yield whole flags. Fixed across the orchestrator, Wayback scanner
+  (four sites), and GitHub scanner.
+- **PageRank centrality was silently disabled on clean installs.**
+  `SocialMediaParser.get_central_nodes` calls `networkx.pagerank`, which
+  requires `scipy` — a package that was not declared as a dependency. The
+  missing import was swallowed by a bare `except Exception`, so the feature
+  always returned `[]`. `scipy` is now a declared dependency, and the handler
+  no longer hides unexpected errors (it logs and narrows to
+  `PowerIterationFailedConvergence`/`ImportError`).
+- **Importing `sherlockml.ml` force-loaded chromadb and spaCy.** The package
+  `__init__` eagerly imported `RAGPipeline` (chromadb + sentence-transformers)
+  and `NERExtractor` (spaCy), so even using the lightweight `RLController`
+  (numpy + sqlite only) required the entire ML stack. Imports are now lazy
+  (PEP 562), loading only what each attribute needs.
+- **Removed a stray `test_parse.py` scratch script** from the repo root that
+  contained an outdated, buggy copy of `_parse_llm_response`.
 - **`--deep` was silently broken.** The orchestrator used
   `asyncio.as_completed(tasks)`, which captures its input as a set at call
   time — tasks appended to `tasks` mid-iteration during discovery were

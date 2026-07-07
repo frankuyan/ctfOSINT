@@ -71,12 +71,13 @@ class TestGitHubScanner:
 
     def test_flag_regex(self, scanner):
         matches = scanner.FLAG_REGEX.findall("Found flag{test_123} in commit")
-        assert len(matches) >= 1
+        # Must capture the whole flag, not just the "flag" prefix.
+        assert matches == ["flag{test_123}"]
 
     def test_flag_regex_various_formats(self, scanner):
         text = "Flags: CTF{abc}, picoCTF{xyz}, HTB{123}"
         matches = scanner.FLAG_REGEX.findall(text)
-        assert len(matches) >= 3
+        assert matches == ["CTF{abc}", "picoCTF{xyz}", "HTB{123}"]
 
     def test_email_regex(self, scanner):
         matches = scanner.EMAIL_REGEX.findall("Contact alice@example.com")

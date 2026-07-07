@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
@@ -11,6 +12,8 @@ from bs4 import BeautifulSoup
 
 if TYPE_CHECKING:
     import aiohttp
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -266,13 +269,23 @@ class SocialMediaParser:
         """
         if not self.graph or not self.graph.nodes():
             return []
-        
+
         try:
             pagerank = nx.pagerank(self.graph)
-            sorted_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)
-            return sorted_nodes[:n]
-        except Exception:
+        except nx.PowerIterationFailedConvergence:
+            logger.warning("PageRank failed to converge; returning no central nodes")
             return []
+        except ImportError:
+            # networkx.pagerank needs scipy; surface the misconfiguration
+            # instead of silently pretending there are no central nodes.
+            logger.warning(
+                "PageRank unavailable (scipy not installed); "
+                "install the 'scipy' dependency to enable centrality analysis"
+            )
+            return []
+
+        sorted_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)
+        return sorted_nodes[:n]
     
     def export_graphml(self, path: str | Any) -> None:
         """Export graph to GraphML format.

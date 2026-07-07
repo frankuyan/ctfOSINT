@@ -13,6 +13,8 @@ from typing import Any, Callable, TYPE_CHECKING
 import aiohttp
 from aiohttp_socks import ProxyConnector
 
+from sherlockml.flags import compile_flag_patterns, extract_flags
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -424,6 +426,30 @@ class Orchestrator:
                 found.add(email)
         return found
 
+    @staticmethod
+    def _scan_flags(
+        result: "SearchResult",
+        compiled_patterns: list[re.Pattern[str]],
+    ) -> list[str]:
+        """Return every full flag found in a result's URL and string metadata.
+
+        Duplicates within the result are removed while preserving order.
+        """
+        if not compiled_patterns:
+            return []
+        texts: list[str] = []
+        if result.url:
+            texts.append(result.url)
+        texts.extend(
+            v for v in result.metadata.values() if isinstance(v, str)
+        )
+        flags: list[str] = []
+        for text in texts:
+            for flag in extract_flags(text, compiled_patterns):
+                if flag not in flags:
+                    flags.append(flag)
+        return flags
+
     async def search(
         self,
         usernames: list[str],
@@ -467,15 +493,9 @@ class Orchestrator:
             total_platforms=len(platforms) * len(usernames),
         )
 
-        # Compile flag patterns
-        compiled_patterns: list[re.Pattern[str]] = []
-        if flag_patterns:
-            compiled_patterns = [re.compile(p, re.IGNORECASE) for p in flag_patterns]
-        elif self.config.ctf.flag_patterns:
-            compiled_patterns = [
-                re.compile(p, re.IGNORECASE)
-                for p in self.config.ctf.flag_patterns
-            ]
+        # Compile flag patterns (empty list -> flag scanning disabled)
+        patterns = flag_patterns or self.config.ctf.flag_patterns
+        compiled_patterns = compile_flag_patterns(patterns) if patterns else []
 
         # Track every username already searched (key: lowercased) along with
         # the hop depth it was discovered at.  Seeds are hop 0.
@@ -570,18 +590,9 @@ class Orchestrator:
                                         ))
 
                     # Scan for flags in metadata values, URL, and raw response
-                    if compiled_patterns:
-                        texts_to_scan: list[str] = []
-                        if result.url:
-                            texts_to_scan.append(result.url)
-                        if result.metadata:
-                            for field_value in result.metadata.values():
-                                if isinstance(field_value, str):
-                                    texts_to_scan.append(field_value)
-                        for text in texts_to_scan:
-                            for pattern in compiled_patterns:
-                                matches = pattern.findall(text)
-                                results.flags_found.extend(matches)
+                    for flag in self._scan_flags(result, compiled_patterns):
+                        if flag not in results.flags_found:
+                            results.flags_found.append(flag)
 
                     if callback:
                         callback(result)

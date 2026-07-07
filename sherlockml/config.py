@@ -10,6 +10,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
+from sherlockml.flags import DEFAULT_FLAG_PATTERNS
+
 
 def expand_env_vars(value: str) -> str:
     """Expand ${VAR} environment variables in string values.
@@ -142,10 +144,9 @@ class OutputConfig(BaseModel):
 class CTFConfig(BaseModel):
     """CTF-specific optimizations."""
     auto_detect_format: bool = True
-    flag_patterns: list[str] = Field(default_factory=lambda: [
-        r'(flag|ctf|glug|hxp|picoCTF|HTB)\{[^}]+\}',
-        r'FLAG\{[^}]+\}',
-    ])
+    flag_patterns: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_FLAG_PATTERNS)
+    )
     fast_fail: bool = False  # Stop after first flag found
     time_travel_date: str | None = None  # Set search date for historical queries
     priority_platforms: list[str] = Field(default_factory=lambda: [
@@ -352,7 +353,7 @@ ctf:
   auto_detect_format: true
   fast_fail: false
   flag_patterns:
-    - '(flag|ctf|glug|hxp|picoCTF|HTB)\\{[^}]+\\}'
+    - '(?:flag|ctf|glug|hxp|picoCTF|HTB)\\{[^}]+\\}'
 """
     
     config_path.parent.mkdir(parents=True, exist_ok=True)

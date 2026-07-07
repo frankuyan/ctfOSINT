@@ -46,6 +46,7 @@ dependencies = [
     # Data processing
     "numpy>=1.24.0",
     "networkx>=3.0",
+    "scipy>=1.10.0",  # required by networkx.pagerank (centrality analysis)
     "jellyfish>=1.0.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",

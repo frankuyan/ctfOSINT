@@ -11,6 +11,7 @@ from sherlockml.enum.orchestrator import (
     _SOCIAL_PATTERNS,
     _SKIP_USERNAMES,
 )
+from sherlockml.flags import compile_flag_patterns
 
 
 def _result(raw: str = "", url: str | None = None, **meta) -> SearchResult:
@@ -206,3 +207,36 @@ class TestPatternCount:
 
     def test_at_least_25_platforms(self):
         assert len(_SOCIAL_PATTERNS) >= 25
+
+
+class TestScanFlags:
+    """Flag scanning must surface whole flags from URL and metadata."""
+
+    def test_flag_in_raw_response(self):
+        pats = compile_flag_patterns()
+        r = _result("<p>the flag is flag{s3cr3t_v4lu3}</p>")
+        assert Orchestrator._scan_flags(r, pats) == ["flag{s3cr3t_v4lu3}"]
+
+    def test_flag_in_url(self):
+        pats = compile_flag_patterns()
+        r = _result(url="https://ctf.example/flag{url_flag}")
+        assert "flag{url_flag}" in Orchestrator._scan_flags(r, pats)
+
+    def test_flag_in_string_metadata(self):
+        pats = compile_flag_patterns()
+        r = _result(bio="my bio CTF{in_bio}")
+        assert "CTF{in_bio}" in Orchestrator._scan_flags(r, pats)
+
+    def test_deduplicates_within_result(self):
+        pats = compile_flag_patterns()
+        r = _result("flag{dup}", extra="flag{dup}")
+        assert Orchestrator._scan_flags(r, pats) == ["flag{dup}"]
+
+    def test_no_patterns_returns_empty(self):
+        r = _result("flag{ignored}")
+        assert Orchestrator._scan_flags(r, []) == []
+
+    def test_no_flags_returns_empty(self):
+        pats = compile_flag_patterns()
+        r = _result("nothing interesting here")
+        assert Orchestrator._scan_flags(r, pats) == []

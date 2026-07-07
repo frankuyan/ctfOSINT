@@ -77,9 +77,11 @@ class GitHubScanner:
     
     API_BASE = "https://api.github.com"
     
-    # Patterns for sensitive data
+    # Patterns for sensitive data.  The alternation is a *non-capturing*
+    # group so ``FLAG_REGEX.findall`` returns whole flags ("flag{...}"),
+    # not just the matched prefix ("flag").
     FLAG_REGEX = re.compile(
-        r'(flag|ctf|glug|hxp|picoCTF|HTB)\{[^}]+\}',
+        r'(?:flag|ctf|glug|hxp|picoCTF|HTB)\{[^}]+\}',
         re.IGNORECASE
     )
     
