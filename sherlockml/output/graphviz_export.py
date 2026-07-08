@@ -61,87 +61,101 @@ class GraphvizExporter:
     def export(
         self,
         graph: "nx.DiGraph",
-        output: Path | str,
+        output: Path | str | None = None,
         title: str = "Social Network Graph",
     ) -> str:
         """Export NetworkX graph to Graphviz DOT.
-        
+
         Args:
             graph: NetworkX graph to export
-            output: Output file path
+            output: Output file path.  When None, the DOT string is built
+                and returned without writing to disk.
             title: Graph title
-            
+
         Returns:
             DOT format string
         """
+        safe_title = self._escape_dot_text(title)
         lines = [
             "digraph SocialNetwork {",
-            f'  label="{title}";',
+            f'  label="{safe_title}";',
             f'  rankdir={self.rankdir};',
             f'  fontname="{self.font_name}";',
             f'  node [shape={self.node_shape}, style=filled, fontname="{self.font_name}"];',
             f'  edge [fontname="{self.font_name}"];',
             "",
         ]
-        
+
         # Add nodes
         for node_id in graph.nodes():
             node_data = graph.nodes[node_id]
             platform = node_data.get("platform", "unknown")
             username = node_data.get("username", str(node_id))
-            
+
             color = self.PLATFORM_COLORS.get(platform.lower(), self.DEFAULT_COLOR)
-            
-            # Escape special characters
-            label = f"{username}\\n({platform})"
+
+            # Escape special characters (each field separately so the
+            # literal "\n" line break below is preserved).
+            label = f"{self._escape_dot_text(username)}\\n({self._escape_dot_text(platform)})"
             escaped_id = self._escape_dot_id(node_id)
-            
+
             lines.append(
                 f'  "{escaped_id}" [label="{label}", '
                 f'fillcolor="{color}", fontcolor="white"];'
             )
-        
+
         lines.append("")
-        
+
         # Add edges
         for source, target, data in graph.edges(data=True):
             relationship = data.get("relationship", "")
             escaped_source = self._escape_dot_id(source)
             escaped_target = self._escape_dot_id(target)
-            
+
             style = "solid"
             if relationship == "same_username":
                 style = "dashed"
             elif relationship == "potential":
                 style = "dotted"
-            
+
             edge_label = ""
             if relationship and relationship not in ("linked", "same_username"):
-                edge_label = f'label="{relationship}", '
-            
+                edge_label = f'label="{self._escape_dot_text(relationship)}", '
+
             lines.append(f'  "{escaped_source}" -> "{escaped_target}" [{edge_label}style={style}];')
-        
+
         lines.append("}")
-        
+
         dot_content = "\n".join(lines)
-        
-        # Write to file
-        output_path = Path(output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(dot_content)
-        
+
+        # Write to file when a destination was given
+        if output is not None:
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(dot_content)
+
         return dot_content
-    
+
+    @staticmethod
+    def _escape_dot_text(value: str) -> str:
+        """Escape backslashes and double-quotes for a DOT string literal.
+
+        Backslashes are escaped first so that quotes escaped afterwards are
+        not re-processed (the previous order produced ``\\\\"`` from a single
+        quote, breaking the string).
+        """
+        return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
     def _escape_dot_id(self, node_id: str) -> str:
         """Escape special characters in DOT node IDs."""
-        return str(node_id).replace('"', '\\"').replace("\\", "\\\\")
+        return self._escape_dot_text(node_id)
     
     def export_subgraph(
         self,
         graph: "nx.DiGraph",
         center_node: str,
         depth: int = 2,
-        output: Path | str = None,
+        output: Path | str | None = None,
     ) -> str:
         """Export a subgraph centered on a specific node.
         
@@ -154,8 +168,6 @@ class GraphvizExporter:
         Returns:
             DOT format string
         """
-        import networkx as nx
-        
         # Get nodes within depth
         nodes = {center_node}
         frontier = {center_node}
@@ -171,11 +183,9 @@ class GraphvizExporter:
         
         # Create subgraph
         subgraph = graph.subgraph(nodes).copy()
-        
-        if output:
-            return self.export(subgraph, output, title=f"Network around {center_node}")
-        
-        return self.export(subgraph, Path("/dev/null"), title=f"Network around {center_node}")
+
+        # export() skips the file write when output is None.
+        return self.export(subgraph, output, title=f"Network around {center_node}")
     
     ALLOWED_FORMATS = {"png", "svg", "pdf", "ps", "eps", "json"}
 

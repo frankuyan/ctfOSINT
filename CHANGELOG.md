@@ -40,9 +40,11 @@ by intent (Added / Changed / Fixed) under each release.
 - **34 new tests** covering `generate_basic`, the per-platform extractors,
   email/handle/contact extraction, the shared text-collection helper, the
   skip list, and pattern-count regressions.
-- **15 further tests** for the shared flag module (`extract_flags` full-match
-  behaviour, including user-supplied capturing-group patterns) and the
-  orchestrator's `_scan_flags` helper. Total suite now: 162 tests.
+- **26 further tests** for the shared flag module (`extract_flags` full-match
+  behaviour, including user-supplied capturing-group patterns), the
+  orchestrator's `_scan_flags` helper, the Graphviz DOT exporter (escaping and
+  write behaviour), and an RL `success_rate` decay regression. Total suite
+  now: 173 tests.
 
 ### Changed
 
@@ -57,6 +59,26 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **Invalid `generated_at` timestamp in JSON reports.**
+  `datetime.now(timezone.utc).isoformat() + "Z"` produced
+  `...+00:00Z` — two timezone designators, which strict ISO 8601/RFC 3339
+  parsers reject. Now emits a single `Z`. The Markdown writer's
+  `flags.json`/writeup timestamps were switched off the deprecated
+  `datetime.utcnow()` to timezone-aware UTC as well.
+- **RL `success_rate` decayed toward zero for reliable platforms.**
+  `PlatformStats.success_rate` divided the learning-rate-*decayed*
+  `successes` by the *undecayed*, ever-growing `total_searches`, so a
+  platform that always yielded a flag reported a success rate near 0 after
+  enough searches — corrupting `export_weights` and non-Thompson platform
+  selection. It now uses `successes / (successes + failures)`, consistent
+  with the Beta model behind Thompson sampling.
+- **Broken DOT escaping in the Graphviz exporter.** `_escape_dot_id`
+  escaped double-quotes *before* backslashes, so a single `"` became
+  `\\"` (escaped backslash + bare quote) and broke the DOT string. Backslash
+  escaping now runs first, and node/edge/title labels are escaped too (they
+  previously weren't escaped at all). `export_subgraph` no longer writes to
+  the non-portable `/dev/null` — `export(output=None)` simply returns the
+  DOT string without touching disk.
 - **Flag detection only captured the flag prefix, not the flag.** The default
   flag regex wrote its alternation as a *capturing* group
   (`(flag|ctf|…)\{…\}`), and every scanner used `re.findall`, which returns

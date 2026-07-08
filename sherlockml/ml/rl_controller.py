@@ -25,10 +25,20 @@ class PlatformStats:
     
     @property
     def success_rate(self) -> float:
-        """Calculate success rate."""
-        if self.total_searches == 0:
+        """Success rate from the (decayed) success/failure counts.
+
+        Uses ``successes / (successes + failures)`` rather than
+        ``successes / total_searches``.  Under learning-rate decay the
+        success/failure counts are attenuated on every update while
+        ``total_searches`` keeps growing unbounded, so dividing by
+        ``total_searches`` would drive the rate toward 0 even for a platform
+        that always succeeds.  This matches the Beta model used by
+        :attr:`thompson_sample`.
+        """
+        observed = self.successes + self.failures
+        if observed == 0:
             return 0.5  # Prior
-        return self.successes / self.total_searches
+        return self.successes / observed
     
     @property
     def thompson_sample(self) -> float:

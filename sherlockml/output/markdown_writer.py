@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
@@ -155,7 +155,7 @@ class MarkdownWriter:
         # Build template context
         context = {
             "target_username": results.query_username,
-            "generated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "elapsed_time": round(results.elapsed_time, 2),
             "total_platforms": results.total_platforms,
             "found_count": results.found_count,
@@ -224,7 +224,7 @@ class MarkdownWriter:
         import json
         
         flags_data = {
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "target": results.query_username,
             "flags": [
                 {

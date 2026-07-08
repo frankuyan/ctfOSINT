@@ -193,7 +193,7 @@ class JSONReporter:
         
         report = {
             "sherlockml_version": __version__,
-            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "query": {
                 "target_username": results.query_username,
                 "variants_searched": results.variants_searched,

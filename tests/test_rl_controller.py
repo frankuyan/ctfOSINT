@@ -33,6 +33,16 @@ class TestPlatformStats:
         samples = [stats.thompson_sample for _ in range(100)]
         assert all(0.0 <= s <= 1.0 for s in samples)
 
+    def test_success_rate_ignores_inflated_total_searches(self):
+        # Under decay, total_searches grows while successes/failures are
+        # attenuated; success_rate must reflect the win/loss ratio, not
+        # decay toward 0 as total_searches climbs.
+        stats = PlatformStats(
+            name="github", successes=6, failures=0,
+            total_searches=50, avg_response_time=0.0, last_updated="",
+        )
+        assert stats.success_rate == 1.0
+
 
 class TestRLController:
     """Test RL controller operations."""
@@ -108,6 +118,14 @@ class TestRLController:
         assert "github" in weights
         assert "twitter" in weights
         assert 0.0 <= weights["github"] <= 1.0
+
+    def test_always_success_stays_high_weight(self, controller):
+        # Regression: a platform that always yields a flag should keep a
+        # high exported weight, not decay toward 0 as searches accumulate.
+        for _ in range(50):
+            controller.update("github", flag_found=True)
+        weights = controller.export_weights()
+        assert weights["github"] > 0.9
 
     def test_reset(self, controller):
         controller.update("github", flag_found=True)
