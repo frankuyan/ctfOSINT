@@ -43,10 +43,18 @@ by intent (Added / Changed / Fixed) under each release.
 - **26 further tests** for the shared flag module (`extract_flags` full-match
   behaviour, including user-supplied capturing-group patterns), the
   orchestrator's `_scan_flags` helper, the Graphviz DOT exporter (escaping and
-  write behaviour), and an RL `success_rate` decay regression. Total suite
-  now: 173 tests.
+  write behaviour), and an RL `success_rate` decay regression.
+- **2 more tests** for `SocialMediaParser.export_dot` escaping and RL training
+  persistence. Total suite now: 175 tests.
 
 ### Changed
+
+- **RL batch training commits once instead of per row.**
+  `RLController.train` previously called `update()` for every
+  (epoch × entry × platform), and each `update()` did its own
+  `commit()` — an fsync per row. Training now applies all writes in a single
+  transaction and commits once (`update()` still commits immediately for
+  single online updates). Results are unchanged.
 
 - **`--variants` and `--no-variants` are now mutually exclusive.** Passing
   both raises a `click.UsageError` instead of silently disabling basic
@@ -78,7 +86,8 @@ by intent (Added / Changed / Fixed) under each release.
   escaping now runs first, and node/edge/title labels are escaped too (they
   previously weren't escaped at all). `export_subgraph` no longer writes to
   the non-portable `/dev/null` — `export(output=None)` simply returns the
-  DOT string without touching disk.
+  DOT string without touching disk. The same escaping gap in
+  `SocialMediaParser.export_dot` was fixed as well.
 - **Flag detection only captured the flag prefix, not the flag.** The default
   flag regex wrote its alternation as a *capturing* group
   (`(flag|ctf|…)\{…\}`), and every scanner used `re.findall`, which returns

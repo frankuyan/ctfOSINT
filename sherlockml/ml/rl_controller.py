@@ -220,23 +220,20 @@ class RLController:
         
         return [p[0] for p in platform_scores[:n]]
     
-    def update(
+    def _apply_update(
         self,
         platform: str,
         flag_found: bool,
         response_time: float = 0.0,
         context: dict[str, Any] | None = None,
     ) -> None:
-        """Update platform statistics after a search.
-        
-        Args:
-            platform: Platform name
-            flag_found: Whether a flag was found
-            response_time: Request response time
-            context: Optional context for training history
+        """Execute the stat + history writes for one observation.
+
+        Does NOT commit — callers control the transaction boundary so batch
+        callers (e.g. :meth:`train`) can commit once instead of per row.
         """
         now = datetime.now(timezone.utc).isoformat()
-        
+
         # Upsert platform stats with learning rate weighting
         # When learning_rate < 1.0, recent observations are weighted more
         # by scaling down historical counts before adding new observation
@@ -245,50 +242,66 @@ class RLController:
         success_val = 1 if flag_found else 0
         failure_val = 0 if flag_found else 1
 
+        self.conn.execute(
+            """
+            INSERT INTO platform_stats (name, successes, failures, total_searches,
+                                         total_response_time, last_updated)
+            VALUES (?, ?, ?, 1, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+                successes = ROUND(successes * ?) + ?,
+                failures = ROUND(failures * ?) + ?,
+                total_searches = total_searches + 1,
+                total_response_time = total_response_time + ?,
+                last_updated = ?
+            """,
+            (
+                platform,
+                success_val,
+                failure_val,
+                response_time,
+                now,
+                decay,
+                success_val,
+                decay,
+                failure_val,
+                response_time,
+                now,
+            ),
+        )
+
+        # Record in training history
+        self.conn.execute(
+            """
+            INSERT INTO training_history (timestamp, platform, flag_found,
+                                          response_time, context)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                now,
+                platform,
+                1 if flag_found else 0,
+                response_time,
+                json.dumps(context) if context else None,
+            ),
+        )
+
+    def update(
+        self,
+        platform: str,
+        flag_found: bool,
+        response_time: float = 0.0,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Update platform statistics after a search (committed immediately).
+
+        Args:
+            platform: Platform name
+            flag_found: Whether a flag was found
+            response_time: Request response time
+            context: Optional context for training history
+        """
         try:
-            self.conn.execute(
-                """
-                INSERT INTO platform_stats (name, successes, failures, total_searches,
-                                             total_response_time, last_updated)
-                VALUES (?, ?, ?, 1, ?, ?)
-                ON CONFLICT(name) DO UPDATE SET
-                    successes = ROUND(successes * ?) + ?,
-                    failures = ROUND(failures * ?) + ?,
-                    total_searches = total_searches + 1,
-                    total_response_time = total_response_time + ?,
-                    last_updated = ?
-                """,
-                (
-                    platform,
-                    success_val,
-                    failure_val,
-                    response_time,
-                    now,
-                    decay,
-                    success_val,
-                    decay,
-                    failure_val,
-                    response_time,
-                    now,
-                ),
-            )
-
-            # Record in training history
-            self.conn.execute(
-                """
-                INSERT INTO training_history (timestamp, platform, flag_found,
-                                              response_time, context)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    now,
-                    platform,
-                    1 if flag_found else 0,
-                    response_time,
-                    json.dumps(context) if context else None,
-                ),
-            )
-
+            self._apply_update(platform, flag_found, response_time, context)
             self.conn.commit()
         except Exception:
             self.conn.rollback()
@@ -323,23 +336,31 @@ class RLController:
             data = json.load(f)
         
         total_updates = 0
-        
-        for epoch in range(epochs):
-            # Shuffle data each epoch
-            random.shuffle(data)
-            
-            for entry in data:
-                platforms = entry.get("platforms", {})
-                context = entry.get("context", {})
-                
-                for platform, flag_found in platforms.items():
-                    self.update(
-                        platform=platform,
-                        flag_found=flag_found,
-                        context=context,
-                    )
-                    total_updates += 1
-        
+
+        # One transaction for the whole run: update() commits per row, which
+        # means an fsync per (epoch × entry × platform) — crippling on real
+        # datasets.  Apply all writes, then commit once.
+        try:
+            for _epoch in range(epochs):
+                # Shuffle data each epoch
+                random.shuffle(data)
+
+                for entry in data:
+                    platforms = entry.get("platforms", {})
+                    context = entry.get("context", {})
+
+                    for platform, flag_found in platforms.items():
+                        self._apply_update(
+                            platform=platform,
+                            flag_found=flag_found,
+                            context=context,
+                        )
+                        total_updates += 1
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
         return {
             "epochs": epochs,
             "entries": len(data),

@@ -127,11 +127,27 @@ class TestSocialMediaParser:
                 linked_accounts=[],
             ),
         ]
-        
+
         parser.build_social_graph(profiles)
         output = tmp_path / "graph.dot"
         dot_content = parser.export_dot(output)
-        
+
         assert output.exists()
         assert "digraph" in dot_content
         assert "github" in dot_content
+
+    def test_export_dot_escapes_quotes(self, parser, tmp_path):
+        """A username with a double-quote must not break the DOT string."""
+        profiles = [
+            SocialProfile(
+                platform="twitter", username='we"ird',
+                url="https://twitter.com/weird",
+                linked_accounts=[],
+            ),
+        ]
+
+        parser.build_social_graph(profiles)
+        dot_content = parser.export_dot(tmp_path / "graph.dot")
+
+        assert 'we\\"ird' in dot_content
+        assert 'we"ird' not in dot_content

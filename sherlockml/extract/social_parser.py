@@ -5,13 +5,10 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 import networkx as nx
 from bs4 import BeautifulSoup
-
-if TYPE_CHECKING:
-    import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -295,21 +292,27 @@ class SocialMediaParser:
         """
         nx.write_graphml(self.graph, path)
     
+    @staticmethod
+    def _dot_escape(value: str) -> str:
+        """Escape backslashes then double-quotes for a DOT string literal.
+
+        Backslashes first so quotes escaped afterwards are not re-processed.
+        """
+        return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
     def export_dot(self, path: str | Any) -> str:
         """Export graph to Graphviz DOT format.
-        
+
         Args:
             path: Output file path
-            
+
         Returns:
             DOT format string
         """
-        from io import StringIO
-        
         dot_lines = ["digraph SocialGraph {"]
         dot_lines.append('  rankdir=LR;')
         dot_lines.append('  node [shape=box, style=filled];')
-        
+
         # Color by platform
         platform_colors = {
             "github": "#24292e",
@@ -320,21 +323,27 @@ class SocialMediaParser:
             "reddit": "#ff4500",
             "youtube": "#ff0000",
         }
-        
+
         # Add nodes
         for node_id in self.graph.nodes():
             node_data = self.graph.nodes[node_id]
             platform = node_data.get("platform", "other")
             color = platform_colors.get(platform, "#cccccc")
             username = node_data.get("username", node_id)
-            
-            dot_lines.append(f'  "{node_id}" [label="{username}\\n({platform})", fillcolor="{color}", fontcolor="white"];')
-        
+
+            label = f"{self._dot_escape(username)}\\n({self._dot_escape(platform)})"
+            dot_lines.append(
+                f'  "{self._dot_escape(node_id)}" [label="{label}", '
+                f'fillcolor="{color}", fontcolor="white"];'
+            )
+
         # Add edges
         for source, target, data in self.graph.edges(data=True):
             relationship = data.get("relationship", "")
             style = "solid" if relationship == "linked" else "dashed"
-            dot_lines.append(f'  "{source}" -> "{target}" [style={style}];')
+            dot_lines.append(
+                f'  "{self._dot_escape(source)}" -> "{self._dot_escape(target)}" [style={style}];'
+            )
         
         dot_lines.append("}")
         

@@ -146,6 +146,21 @@ class TestRLController:
         assert result["entries"] == 2
         assert result["total_updates"] > 0
 
+    def test_train_commits_to_disk(self, tmp_path):
+        # train() uses a single transaction; make sure it actually commits by
+        # reopening the DB with a fresh connection and reading the stats back.
+        db_path = tmp_path / "train_persist.db"
+        dataset = [{"platforms": {"github": True, "twitter": False}}]
+        dataset_path = tmp_path / "train.json"
+        dataset_path.write_text(json.dumps(dataset))
+
+        with RLController(db_path=db_path) as rl:
+            rl.train(dataset_path, epochs=3)
+
+        with RLController(db_path=db_path) as rl2:
+            assert rl2.get_stats("github").successes >= 1
+            assert rl2.get_stats("twitter").failures >= 1
+
     def test_context_manager(self, tmp_path):
         db_path = tmp_path / "ctx.db"
         with RLController(db_path=db_path) as rl:
