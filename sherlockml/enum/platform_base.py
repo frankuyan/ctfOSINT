@@ -93,13 +93,20 @@ class BasePlatform(ABC):
     requires_auth: bool = False
     rate_limit_rpm: float = 60.0  # requests per minute
     
-    def __init__(self, auth_token: str | None = None):
+    def __init__(
+        self,
+        auth_token: str | None = None,
+        custom_headers: dict[str, str] | None = None,
+    ):
         """Initialize the platform.
-        
+
         Args:
             auth_token: Optional authentication token
+            custom_headers: Optional per-platform HTTP headers merged into
+                (and overriding) the defaults from ``get_headers``.
         """
         self.auth_token = auth_token
+        self.custom_headers = custom_headers or {}
         self._session: aiohttp.ClientSession | None = None
     
     @property
@@ -167,10 +174,14 @@ class BasePlatform(ABC):
             "Accept-Language": "en-US,en;q=0.9",
             "User-Agent": DEFAULT_USER_AGENT,
         }
-        
+
         if self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"
-        
+
+        # User-supplied headers win over the defaults above.
+        if self.custom_headers:
+            headers.update(self.custom_headers)
+
         return headers
     
     def validate_username(self, username: str) -> bool:

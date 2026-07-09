@@ -50,7 +50,10 @@ by intent (Added / Changed / Fixed) under each release.
   `_diff_content`, `_find_hidden_endpoints`, `_build_profile_urls`, toolbar
   stripping, snapshot parsing) — previously untested.
 - **1 more test** asserting `search --verify` verdicts are persisted into the
-  saved JSON. Total suite now: 187 tests.
+  saved JSON.
+- **7 more tests** for per-platform `custom_headers` (merging/override in
+  `get_headers`, registry threading, and cache disambiguation). Total suite
+  now: 194 tests.
 
 ### Changed
 
@@ -72,6 +75,13 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **`platforms.<name>.custom_headers` was silently ignored.** The config field
+  was defined and validated but never applied to any request. It is now
+  threaded from config through the registry into each platform and merged in
+  `get_headers()` (user headers override the defaults, so a per-platform
+  `User-Agent`, cookie, or API header now takes effect). The registry's
+  instance cache key includes the header set so distinct configurations don't
+  collide.
 - **`search --verify` results were never written to the output file.** The CLI
   built a dict with the LLM verification verdicts and then discarded it — the
   saved JSON came from `generate_report(results)`, which has no verification

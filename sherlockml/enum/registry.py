@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from sherlockml.enum.platform_base import BasePlatform
 
 if TYPE_CHECKING:
-    from sherlockml.config import Config, PlatformConfig
+    from sherlockml.config import Config
 
 
 class PlatformRegistry:
@@ -57,24 +57,35 @@ class PlatformRegistry:
         
         self._platforms[platform_cls.name] = platform_cls
     
-    def get(self, name: str, auth_token: str | None = None) -> BasePlatform | None:
+    def get(
+        self,
+        name: str,
+        auth_token: str | None = None,
+        custom_headers: dict[str, str] | None = None,
+    ) -> BasePlatform | None:
         """Get a platform instance by name.
-        
+
         Args:
             name: Platform name
             auth_token: Optional auth token for the platform
-            
+            custom_headers: Optional per-platform HTTP headers
+
         Returns:
             Platform instance or None if not found
         """
         if name not in self._platforms:
             return None
-        
-        # Cache instances
-        cache_key = f"{name}:{auth_token or 'none'}"
+
+        # Cache instances, keyed so distinct auth/header combinations don't
+        # collide onto the same cached object.
+        headers_key = ",".join(f"{k}={v}" for k, v in sorted((custom_headers or {}).items()))
+        cache_key = f"{name}:{auth_token or 'none'}:{headers_key}"
         if cache_key not in self._instances:
-            self._instances[cache_key] = self._platforms[name](auth_token=auth_token)
-        
+            self._instances[cache_key] = self._platforms[name](
+                auth_token=auth_token,
+                custom_headers=custom_headers,
+            )
+
         return self._instances[cache_key]
     
     def discover_builtin(self) -> int:
@@ -185,8 +196,12 @@ class PlatformRegistry:
             
             if not platform_config.enabled:
                 continue
-            
-            platform = self.get(name, auth_token=platform_config.auth_token)
+
+            platform = self.get(
+                name,
+                auth_token=platform_config.auth_token,
+                custom_headers=platform_config.custom_headers,
+            )
             if platform:
                 enabled.append((platform_config.priority_weight, platform))
         
@@ -221,10 +236,13 @@ class PlatformRegistry:
         for name, platform_cls in self._platforms.items():
             if hasattr(platform_cls, 'category') and platform_cls.category == cat:
                 auth_token = None
+                custom_headers = None
                 if config:
-                    auth_token = config.get_platform(name).auth_token
-                
-                platform = self.get(name, auth_token=auth_token)
+                    platform_config = config.get_platform(name)
+                    auth_token = platform_config.auth_token
+                    custom_headers = platform_config.custom_headers
+
+                platform = self.get(name, auth_token=auth_token, custom_headers=custom_headers)
                 if platform:
                     result.append(platform)
         

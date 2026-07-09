@@ -19,7 +19,7 @@
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
 - 📊 **Rich Output**: JSON reports, Graphviz diagrams, Markdown writeups
 - 🐳 **Docker Ready**: Multi-stage build with Tor support
-- ✅ **Well-Tested**: 187 tests covering variant generation, URL/handle/email/flag extraction, reporters, Wayback helpers, and platform pattern regressions
+- ✅ **Well-Tested**: 194 tests covering variant generation, URL/handle/email/flag extraction, reporters, Wayback helpers, and platform pattern regressions
 
 ## Quick Start
 
@@ -110,6 +110,8 @@ platforms:
     enabled: true
     priority_weight: 0.92
     auth_token: ${GITHUB_TOKEN}
+    custom_headers:            # merged into requests; overrides defaults
+      User-Agent: "MyResearchBot/1.0"
   twitter:
     enabled: true
     priority_weight: 0.78
