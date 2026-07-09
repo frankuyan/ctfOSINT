@@ -88,3 +88,63 @@ class TestCLI:
         # Test with --variants
         result = runner.invoke(main, ["search", "testuser", "--variants"])
         assert result.exit_code == 0
+
+    @patch("sherlockml.enum.verify.verify_results")
+    @patch("sherlockml.enum.orchestrator.Orchestrator")
+    @patch("sherlockml.enum.registry.get_registry")
+    def test_search_verify_persisted_to_json(
+        self, mock_get_registry, mock_orchestrator, mock_verify, runner, tmp_path
+    ):
+        """--verify verdicts must be written into the saved JSON, not dropped."""
+        import json as _json
+
+        from sherlockml.enum.orchestrator import SearchResult, SearchResults
+        from sherlockml.enum.verify import VerificationResult
+
+        mock_registry = MagicMock()
+        mock_get_registry.return_value = mock_registry
+        mock_registry.get_enabled.return_value = ["reddit"]
+
+        found = SearchResult(
+            username="testuser",
+            platform="reddit",
+            exists=True,
+            url="https://reddit.com/user/testuser",
+            metadata={"_raw_response": "<html>a real profile page</html>"},
+        )
+        search_results = SearchResults(
+            query_username="testuser", total_platforms=1, found_count=1
+        )
+        search_results.results = [found]
+        search_results.elapsed_time = 0.1
+
+        mock_orch_instance = mock_orchestrator.return_value
+        mock_orch_instance.search = AsyncMock(return_value=search_results)
+
+        mock_verify.return_value = [
+            VerificationResult(
+                platform="reddit",
+                url="https://reddit.com/user/testuser",
+                verdict="real",
+                confidence=0.9,
+                reason="active profile",
+            )
+        ]
+
+        out = tmp_path / "result"
+        result = runner.invoke(
+            main,
+            [
+                "search", "testuser",
+                "--no-variants",
+                "--verify",
+                "--llm-key", "sk-test",
+                "-o", str(out),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        saved = _json.loads((tmp_path / "result.json").read_text())
+        assert "verification" in saved
+        assert saved["verification"][0]["verdict"] == "real"
+        assert saved["verification"][0]["platform"] == "reddit"

@@ -48,8 +48,9 @@ by intent (Added / Changed / Fixed) under each release.
   persistence.
 - **11 more tests** for the Wayback helpers (`_date_window` calendar math,
   `_diff_content`, `_find_hidden_endpoints`, `_build_profile_urls`, toolbar
-  stripping, snapshot parsing) — previously untested. Total suite now:
-  186 tests.
+  stripping, snapshot parsing) — previously untested.
+- **1 more test** asserting `search --verify` verdicts are persisted into the
+  saved JSON. Total suite now: 187 tests.
 
 ### Changed
 
@@ -71,6 +72,11 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **`search --verify` results were never written to the output file.** The CLI
+  built a dict with the LLM verification verdicts and then discarded it — the
+  saved JSON came from `generate_report(results)`, which has no verification
+  data. The verdicts (shown on screen) are now folded into the report that is
+  actually saved.
 - **Wayback `get_content_at_date` computed a bogus end date.** It derived the
   upper bound as `int(target_date[:8]) + 30`, treating a `YYYYMMDD` string as
   an integer — so `20240120 + 30` became `20240150` (day 50) and December

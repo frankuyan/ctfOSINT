@@ -421,21 +421,20 @@ async def search(
         for flag in results.flags_found:
             console.print(f"  {flag}")
     
-    # Attach verification data to results dict for output
-    if verification_results:
-        results_dict = results.to_dict()
-        results_dict["verification"] = [v.to_dict() for v in verification_results]
-
     # Save output
     if output is not None or output_format in ('md', 'both'):
         from sherlockml.output.json_reporter import JSONReporter
         from sherlockml.output.markdown_writer import MarkdownWriter
 
         output = output or Path(f"sherlockml_{username}")
-        
+
         if output_format in ('json', 'both'):
             reporter = JSONReporter()
             report = reporter.generate_report(results)
+            # Fold in LLM verification so the saved file matches what was
+            # shown on screen (previously computed but never persisted).
+            if verification_results:
+                report["verification"] = [v.to_dict() for v in verification_results]
             json_path = output.with_suffix('.json')
             reporter.save(report, json_path)
             console.print(f"\n[dim]Saved JSON: {json_path}[/dim]")
