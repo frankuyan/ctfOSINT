@@ -6,7 +6,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -500,6 +500,23 @@ class WaybackIntegration:
 
         return hidden
 
+    @staticmethod
+    def _date_window(target_date: str, days: int = 30) -> tuple[str, str | None]:
+        """Return ``(from, to)`` YYYYMMDD bounds spanning ``days`` forward.
+
+        The old implementation added ``days`` to the YYYYMMDD value as an
+        integer (e.g. ``20240120 + 30 = 20240150``), which yields invalid
+        dates and mishandles month/year boundaries.  Uses real date
+        arithmetic instead; if ``target_date`` is malformed the upper bound
+        is dropped rather than raising.
+        """
+        start = target_date[:8]
+        try:
+            end = datetime.strptime(start, "%Y%m%d") + timedelta(days=days)
+        except ValueError:
+            return start, None
+        return start, end.strftime("%Y%m%d")
+
     async def get_content_at_date(
         self,
         url: str,
@@ -516,10 +533,11 @@ class WaybackIntegration:
         Returns:
             Content string or None if not available
         """
+        from_date, to_date = self._date_window(target_date, days=30)
         snapshots = await self.get_snapshots(
             url, session,
-            from_date=target_date[:8],
-            to_date=str(int(target_date[:8]) + 30),
+            from_date=from_date,
+            to_date=to_date,
             limit=1,
         )
 

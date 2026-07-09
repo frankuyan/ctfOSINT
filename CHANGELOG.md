@@ -45,7 +45,11 @@ by intent (Added / Changed / Fixed) under each release.
   orchestrator's `_scan_flags` helper, the Graphviz DOT exporter (escaping and
   write behaviour), and an RL `success_rate` decay regression.
 - **2 more tests** for `SocialMediaParser.export_dot` escaping and RL training
-  persistence. Total suite now: 175 tests.
+  persistence.
+- **11 more tests** for the Wayback helpers (`_date_window` calendar math,
+  `_diff_content`, `_find_hidden_endpoints`, `_build_profile_urls`, toolbar
+  stripping, snapshot parsing) — previously untested. Total suite now:
+  186 tests.
 
 ### Changed
 
@@ -67,6 +71,12 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **Wayback `get_content_at_date` computed a bogus end date.** It derived the
+  upper bound as `int(target_date[:8]) + 30`, treating a `YYYYMMDD` string as
+  an integer — so `20240120 + 30` became `20240150` (day 50) and December
+  dates rolled past `…1250` instead of into the next year. Now uses real
+  `timedelta` arithmetic via a testable `_date_window` helper. Added a
+  `test_wayback.py` covering the previously untested pure helpers.
 - **Invalid `generated_at` timestamp in JSON reports.**
   `datetime.now(timezone.utc).isoformat() + "Z"` produced
   `...+00:00Z` — two timezone designators, which strict ISO 8601/RFC 3339
