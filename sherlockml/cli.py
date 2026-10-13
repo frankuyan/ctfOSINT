@@ -16,12 +16,23 @@ from rich.table import Table
 from sherlockml import __version__
 from sherlockml.config import Config, load_config, create_default_config_file
 from sherlockml.net import apply_proxy_option, create_session
+from sherlockml.tor import identity_rotation, rotation_enabled
 
 if TYPE_CHECKING:
     from sherlockml.extract.image_forensics import ImageReport
 
 
 console = Console()
+
+
+def _announce_rotation(config: Config) -> None:
+    """Tell the user Tor identity rotation is active (failures are logged)."""
+    if rotation_enabled(config.proxy):
+        interval = max(10, config.proxy.rotate_interval)
+        console.print(
+            f"[dim]Tor identity rotation: now and every {interval}s via control port "
+            f"{escape(config.proxy.host)}:{config.proxy.control_port}[/dim]"
+        )
 
 
 def async_command(f):
@@ -173,6 +184,7 @@ async def search(
         return
     
     console.print(f"Platforms: {len(platforms)} enabled")
+    _announce_rotation(config)
     
     # Run search
     orchestrator = Orchestrator(config)
@@ -658,7 +670,8 @@ async def scan_github(
     
     console.print(f"Scanning GitHub user: [green]{escape(username)}[/green]")
     
-    async with create_session(config, timeout=60) as session:
+    _announce_rotation(config)
+    async with identity_rotation(config), create_session(config, timeout=60) as session:
         result = await scanner.scan_user(
             username, session,
             commits=commits,
@@ -754,8 +767,9 @@ async def wayback(
         console.print(f"Date range: {escape(from_date or '...')} to {escape(to_date or '...')}")
     console.print()
 
+    _announce_rotation(config)
     # CDX wildcard queries can be slow; keep aiohttp's default 5 min budget
-    async with create_session(config, timeout=300) as session:
+    async with identity_rotation(config), create_session(config, timeout=300) as session:
         if mode == 'url':
             with Progress(
                 SpinnerColumn(),

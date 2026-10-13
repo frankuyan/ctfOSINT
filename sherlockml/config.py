@@ -112,11 +112,21 @@ class ProxyConfig(BaseModel):
     port: int = 9050
     username: str | None = None
     password: str | None = None
-    rotate: bool = False  # Rotate through proxy list
-    rotate_enabled: bool = True  # Enable identity rotation
-    rotate_interval: int = 300  # Seconds between rotations
+    # Tor identity rotation (SIGNAL NEWNYM over the control port on
+    # ``host``) at scan start and every rotate_interval seconds.
+    rotate: bool = False
+    rotate_enabled: bool = True  # Kill switch: false disables rotation even if rotate is on
+    rotate_interval: int = 300  # Seconds between rotations (minimum 10)
     control_port: int = 9051  # Tor control port
+    control_password: str | None = None  # For HashedControlPassword auth
     
+    @field_validator('control_password', mode='before')
+    @classmethod
+    def expand_control_password(cls, v: str | None) -> str | None:
+        if v is not None:
+            return expand_env_vars(v)
+        return v
+
     @property
     def url(self) -> str:
         auth = ""
