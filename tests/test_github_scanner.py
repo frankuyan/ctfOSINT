@@ -1,5 +1,7 @@
 """Tests for GitHub scanner (non-network methods)."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from sherlockml.extract.github_scanner import GitHubScanner
@@ -94,3 +96,51 @@ class TestGitHubScanner:
         headers = scanner._get_headers()
         assert "Authorization" not in headers
         assert headers["Accept"] == "application/vnd.github.v3+json"
+
+
+class TestConfiguredFlagPatterns:
+    """scan-github must use config.ctf.flag_patterns, like search and wayback."""
+
+    @staticmethod
+    async def _scan(scanner, message):
+        from sherlockml.extract.github_scanner import GitHubCommit
+
+        commit = GitHubCommit(
+            sha="abc", message=message, author_name="a",
+            author_email="a@example.com", date="", url="",
+        )
+        with patch.object(scanner, "_get_repos", AsyncMock(return_value=[])), \
+             patch.object(scanner, "_search_commits", AsyncMock(return_value=[commit])):
+            return await scanner.scan_user("someone", None, gists=False)
+
+    async def test_default_patterns(self):
+        result = await self._scan(GitHubScanner(), "fix: flag{default}")
+        assert result.flags_found == ["flag{default}"]
+
+    async def test_custom_patterns(self):
+        scanner = GitHubScanner(flag_patterns=[r"THM\{[^}]+\}"])
+        result = await self._scan(scanner, "THM{custom} and flag{not_matched}")
+        assert result.flags_found == ["THM{custom}"]
+
+    def test_cli_passes_config_patterns(self):
+        from click.testing import CliRunner
+
+        from sherlockml.cli import main
+        from sherlockml.config import Config
+        from sherlockml.extract.github_scanner import GitHubResult
+
+        config = Config()
+        config.ctf.flag_patterns = [r"THM\{[^}]+\}"]
+        seen = {}
+
+        def capture(*args, **kwargs):
+            seen.update(kwargs)
+            instance = MagicMock()
+            instance.scan_user = AsyncMock(return_value=GitHubResult("u", "https://github.com/u"))
+            return instance
+
+        with patch("sherlockml.cli.load_config", return_value=config), \
+             patch("sherlockml.extract.github_scanner.GitHubScanner", side_effect=capture):
+            result = CliRunner().invoke(main, ["scan-github", "u"])
+        assert result.exit_code == 0, result.output
+        assert seen["flag_patterns"] == [r"THM\{[^}]+\}"]

@@ -651,7 +651,10 @@ async def scan_github(
         apply_proxy_option(config, proxy)
     github_config = config.get_platform('github')
     
-    scanner = GitHubScanner(auth_token=github_config.auth_token)
+    scanner = GitHubScanner(
+        auth_token=github_config.auth_token,
+        flag_patterns=config.ctf.flag_patterns if config.ctf.auto_detect_format else None,
+    )
     
     console.print(f"Scanning GitHub user: [green]{escape(username)}[/green]")
     
