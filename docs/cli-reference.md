@@ -49,6 +49,8 @@ sherlockml search [OPTIONS] USERNAME
 | `--max-discovered` | | INT | 15 | Maximum total discovered usernames across all hops (only with `--deep`) |
 | `--verify` | | FLAG | false | Use LLM to verify found profiles are real |
 | `--llm-key` | | TEXT | - | LLM API key (overrides config, env: SHERLOCKML_LLM_KEY) |
+| `--evidence-dir` | | PATH | - | Save every found profile plus `manifest.json` and `SHA256SUMS` into a new timestamped case folder under PATH |
+| `--graph` | | PATH | - | Export the discovery graph: `.graphml`, `.dot`/`.gv`, or `.svg`/`.png`/`.pdf` (needs Graphviz `dot`; falls back to `.dot`) |
 
 **Examples:**
 
@@ -93,6 +95,23 @@ By default, SherlockML generates up to ~15 high-quality variants from the input 
 - **`--deep`**: Cross-platform discovery — when a profile is found, extract linked usernames and bare `@handle` mentions from the profile page and search those too. By default follows up to 2 hops (seeds → linked profiles → links of those profiles), capped at 15 total discovered usernames. Tune with `--max-hops` and `--max-discovered`.
 
 When a profile is found, SherlockML also harvests any non-role email addresses (`alice@protonmail.com`, skipping `noreply@`/`support@`/etc.) from the profile page and surfaces them in a `Contacts` section of the result.
+
+With `--deep`, every result records its `hop` and `discovered_from` (the `platform:username` profile whose page linked it). Hits are printed as `✓ twitter: https://... (via github:alice)`, the summary lists each discovered username with its source, and both appear in the JSON report (`discoveries`, per-result `hop`/`discovered_from`). Discovered usernames are processed in sorted order, so the `--max-discovered` cut is the same on every run.
+
+**Evidence capture (`--evidence-dir`):**
+
+```bash
+sherlockml search alice --deep --evidence-dir cases/
+# cases/alice_20261013T212537Z/
+#   001_github_alice.json    observed API data
+#   002_gitlab_alice.html    captured profile page
+#   manifest.json            target, variants, discoveries, capture time + sha256 per item
+#   SHA256SUMS               cd into the folder and run: sha256sum -c SHA256SUMS
+```
+
+Each run gets its own folder, so earlier captures are never overwritten. Hashes cover the saved files; the manifest records whether a proxy was in use (never the proxy address or credentials). Platforms checked through a JSON API are saved as the data observed; if `--verify` fetched their HTML page, that page is saved instead.
+
+**Graph export (`--graph`):** identity nodes (usernames) point to the profiles found for them (dashed); profiles point to the usernames their pages linked to (solid). Discovered usernames with no accounts stay in the graph as open leads. Open `.graphml` in Gephi, yEd or Cytoscape.
 
 When `--verify` is used, results are split into two tables:
 - **Verified Profiles**: Real/suspicious accounts with extracted OSINT details (bio, display name, join date, activity, external links, notable info).
@@ -172,6 +191,7 @@ sherlockml scan-github [OPTIONS] USERNAME
 | `--gists` | | FLAG | true | Include public gists |
 | `--depth` | `-d` | INT | 10 | Search depth (pages) |
 | `--output` | `-o` | PATH | - | Save results to file |
+| `--proxy` | | TEXT | - | Proxy URL (socks5://host:port); `proxy:` in config is used otherwise |
 
 **Examples:**
 
@@ -191,7 +211,7 @@ sherlockml scan-github targetuser --commits -d 20 -o github_results.json
 - Public repositories
 - Commit history with email addresses
 - Public gists
-- CTF flags in commit messages
+- CTF flags in commit messages and repo/gist descriptions
 - Sensitive file patterns
 
 ---
@@ -293,6 +313,7 @@ sherlockml wayback [OPTIONS] TARGET
 | `--max-snapshots` | | INT | 5 | Max snapshots to fetch content from |
 | `--output` | `-o` | PATH | - | Output file (JSON) |
 | `--rate-limit` | `-r` | FLOAT | 10.0 | Requests per minute to Wayback API |
+| `--proxy` | | TEXT | - | Proxy URL (socks5://host:port); `proxy:` in config is used otherwise |
 
 **Modes:**
 
@@ -331,6 +352,55 @@ sherlockml wayback https://example.com -s -o wayback_results.json
 - Content changes between snapshots (diff mode)
 - Deleted profiles and old bios (profile mode)
 - Forgotten files like flag.txt, .env, .bak, .sql (domain mode)
+
+---
+
+### exif
+
+Image forensics for local files and directories. Pixel data is never decoded: JPEG and PNG structure is walked directly and Pillow only reads EXIF tags and dimensions.
+
+```bash
+sherlockml exif [OPTIONS] PATHS...
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `PATHS` | One or more image files or directories |
+
+**Options:**
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--recursive` | `-r` | FLAG | false | Recurse into directories |
+| `--all-tags` | | FLAG | false | Print every EXIF tag, not just the highlights |
+| `--output` | `-o` | PATH | - | Output file (JSON) |
+
+**Examples:**
+
+```bash
+# One photo
+sherlockml exif photo.jpg
+
+# Sweep a folder of downloaded avatars / challenge files
+sherlockml exif ./downloads -r -o images.json
+
+# Find appended archives, then carve them out
+sherlockml exif challenge.png          # "Appended data: ... contains zip at offset 48213"
+dd if=challenge.png of=hidden.zip bs=1 skip=48213
+```
+
+**What It Finds:**
+
+- MD5 / SHA-1 / SHA-256 of the file
+- Real file type from magic bytes, and extension mismatches (a PNG saved as `.jpg`, a zip renamed to `.png`)
+- Camera make/model/lens/serial, editing software, artist, and EXIF timestamps
+- GPS as signed decimal degrees, altitude, GPS time (UTC), with Google Maps and OpenStreetMap links
+- Hidden text: PNG `tEXt`/`zTXt`/`iTXt` chunks (decompression capped at 1 MiB), JPEG comments, XMP packets, Windows `XP*` tags, EXIF `UserComment`
+- Bytes appended after the JPEG end-of-image / PNG `IEND` marker, with the type and offset of any embedded file (zip, rar, 7z, pdf, png, jpeg, gif, elf)
+- Non-standard PNG chunk names
+- CTF flags anywhere in the file bytes or decoded metadata
+
+In directory mode a file is included if its extension or its magic bytes say it's an image, so renamed images are not skipped.
 
 ---
 
