@@ -14,7 +14,7 @@
 - 🧾 **Evidence Capture** (`--evidence-dir`): Saves every found profile with a UTC capture time and SHA-256 manifest (`sha256sum -c SHA256SUMS` verifies it); each run gets its own case folder
 - 🧭 **Pivot Provenance + Graphs** (`--graph`): Records which profile led to each discovered username; exports GraphML/DOT/SVG
 - 🖼️ **Image Forensics** (`exif`): Hashes, real type vs. extension, EXIF/GPS with map links, hidden PNG/JPEG/XMP text, data appended after end-of-image, flags
-- 🧅 **Proxy Everywhere**: `--proxy`/Tor applies to search, verification fetches, `wayback` and `scan-github`
+- 🧅 **Proxy Everywhere**: `--proxy`/Tor applies to search, verification fetches, `wayback` and `scan-github`; optional Tor identity rotation (`proxy.rotate`) gets a new exit IP per run and on a timer
 - 🌍 **International Coverage**: Chinese, Russian, Japanese, Korean, and European platforms
 - 🛡️ **Advanced False Positive Detection**: Soft 404s, empty pages, login walls, redirect detection, and multilingual "not found" patterns
 - 🤖 **LLM Profile Verification**: Use OpenAI, Anthropic, Gemini, or local models to verify if found accounts are real or empty
@@ -23,7 +23,7 @@
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
 - 📊 **Rich Output**: JSON reports, Graphviz diagrams, Markdown writeups
 - 🐳 **Docker Ready**: Multi-stage build with Tor support
-- ✅ **Well-Tested**: 217 tests covering variant generation, URL/handle/email extraction, flag capture, proxy routing, evidence manifests, image forensics, and platform pattern regressions
+- ✅ **Well-Tested**: 242 tests covering variant generation, URL/handle/email extraction, flag capture, proxy routing and Tor rotation, hostile-input output escaping, evidence manifests, image forensics, and platform pattern regressions
 
 ## Quick Start
 
