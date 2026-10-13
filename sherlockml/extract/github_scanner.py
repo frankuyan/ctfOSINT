@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
-from sherlockml.flags import find_flags
+from sherlockml.flags import compile_flag_patterns, find_flags
 
 if TYPE_CHECKING:
     import aiohttp
@@ -108,15 +108,21 @@ class GitHubScanner:
         self,
         auth_token: str | None = None,
         rate_limit: float = 30.0,
+        flag_patterns: list[str] | None = None,
     ):
         """Initialize the scanner.
         
         Args:
             auth_token: GitHub API token (increases rate limits)
             rate_limit: Requests per minute
+            flag_patterns: Flag regexes (e.g. config.ctf.flag_patterns);
+                defaults to FLAG_REGEX
         """
         self.auth_token = auth_token
         self.rate_limit = rate_limit
+        self.flag_patterns = (
+            compile_flag_patterns(flag_patterns) if flag_patterns else [self.FLAG_REGEX]
+        )
         self._last_request = 0.0
     
     def _get_headers(self) -> dict[str, str]:
@@ -176,7 +182,7 @@ class GitHubScanner:
                 if commit.author_email:
                     result.emails_found.append(commit.author_email)
                 
-                result.flags_found.extend(find_flags(commit.message, [self.FLAG_REGEX]))
+                result.flags_found.extend(find_flags(commit.message, self.flag_patterns))
         
         # Get gists
         if gists:
@@ -186,7 +192,7 @@ class GitHubScanner:
         descriptions = [r.get("description") or "" for r in result.repos]
         descriptions += [g.description or "" for g in result.gists]
         for text in descriptions:
-            result.flags_found.extend(find_flags(text, [self.FLAG_REGEX]))
+            result.flags_found.extend(find_flags(text, self.flag_patterns))
         
         # Deduplicate, preserving discovery order
         result.emails_found = list(dict.fromkeys(result.emails_found))
