@@ -120,6 +120,14 @@ class TestNewIdentity:
             await new_identity("127.0.0.1", fake.port)
         assert fake.newnym_count == 1
 
+    async def test_empty_password_falls_back_to_cookie(self, tmp_path):
+        # control_password: ${TOR_CONTROL_PASSWORD} with the variable unset
+        cookie = tmp_path / "control_auth_cookie"
+        cookie.write_bytes(b"\x01" * 32)
+        async with FakeTorControl("COOKIE", cookie_file=cookie) as fake:
+            await new_identity("127.0.0.1", fake.port, password="")
+        assert fake.newnym_count == 1
+
     async def test_unreadable_cookie(self, tmp_path):
         missing = tmp_path / "gone"
         async with FakeTorControl("COOKIE", cookie_file=missing) as fake:

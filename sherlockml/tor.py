@@ -85,7 +85,9 @@ async def _authenticate(
     methods = set(methods_match.group(1).split(",")) if methods_match else set()
     cookie_match = re.search(r'COOKIEFILE="((?:[^"\\]|\\.)*)"', auth)
 
-    if password is not None:
+    # An empty password means "not set": ${TOR_CONTROL_PASSWORD} expands to
+    # "" when the variable is missing, and cookie/no-auth should still work.
+    if password:
         command = f"AUTHENTICATE {_quote(password)}"
     elif "NULL" in methods:
         command = "AUTHENTICATE"
