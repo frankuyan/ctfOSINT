@@ -186,10 +186,17 @@ def _walk_jpeg(data: bytes, text: dict[str, str]) -> int | None:
             text["xmp"] = _clip(payload[len(_XMP_HEADER):].decode("utf-8", errors="replace"))
         i += 2 + length
         if marker == 0xDA:          # SOS: skip entropy-coded data
-            while i < n - 1 and not (
-                data[i] == 0xFF and data[i + 1] != 0x00 and not 0xD0 <= data[i + 1] <= 0xD7
-            ):
-                i += 1
+            while True:
+                j = data.find(b"\xff", i, n - 1)
+                if j == -1:
+                    i = n
+                    break
+                following = data[j + 1]
+                if following == 0x00 or 0xD0 <= following <= 0xD7:
+                    i = j + 2       # stuffed byte or restart marker
+                    continue
+                i = j
+                break
     else:
         end = None
     if comments:
@@ -347,8 +354,11 @@ def _read_exif(path: Path, report: ImageReport) -> None:
             for tag, value in exif.get_ifd(_EXIF_IFD).items():
                 tags[ExifTags.TAGS.get(tag, f"0x{tag:04x}")] = _decode_tag(tag, value)
             gps_ifd = dict(exif.get_ifd(_GPS_IFD))
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as e:
+    except UnidentifiedImageError as e:
         report.error = f"Could not read image metadata: {e}"
+        return
+    except Exception as e:  # noqa: BLE001 - hostile files can trip any parser error
+        report.error = f"Could not read image metadata ({type(e).__name__}): {e}"
         return
 
     for name in _XP_TAGS.values():
@@ -433,9 +443,13 @@ def iter_image_files(paths: list[Path], recursive: bool = False) -> list[Path]:
                 if f.suffix.lower() in IMAGE_EXTENSIONS:
                     files.append(f)
                     continue
-                with f.open("rb") as fh:
-                    if sniff_type(fh.read(16)) in _EXTENSIONS:
-                        files.append(f)
+                try:
+                    with f.open("rb") as fh:
+                        head = fh.read(16)
+                except OSError:
+                    continue
+                if sniff_type(head) in _EXTENSIONS:
+                    files.append(f)
         else:
             files.append(p)
     return files

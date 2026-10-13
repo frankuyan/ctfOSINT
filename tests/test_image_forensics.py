@@ -239,3 +239,30 @@ class TestDirectoryScan:
         (entry,) = json.loads(out.read_text())
         assert entry["gps"]["latitude"] == pytest.approx(-33.865)
         assert entry["findings"]
+
+
+class TestHostileInput:
+    def test_parser_error_is_reported_not_raised(self, tmp_path, geotagged_jpeg):
+        with patch("PIL.Image.Image.getexif", side_effect=RuntimeError("boom")):
+            report = analyze_image(geotagged_jpeg)
+        assert "RuntimeError" in report.error
+        assert report.sha256  # hashing and structure checks still ran
+
+    def test_truncated_files_do_not_hang_or_crash(self, tmp_path):
+        jpeg = _jpeg_bytes()
+        png = _png_bytes()
+        for i, data in enumerate([jpeg[: len(jpeg) // 2], png[:20], b"\xff\xd8\xff\xda\x00"]):
+            path = tmp_path / f"cut{i}.bin"
+            path.write_bytes(data)
+            report = analyze_image(path)
+            assert report.trailing_data is None
+
+    def test_large_scan_is_fast(self):
+        import time
+
+        # 8 MB of entropy-coded data with stuffed bytes, then EOI
+        scan = (b"\x11\x22\xff\x00" * (2 << 20))
+        jpeg = b"\xff\xd8" + b"\xff\xda\x00\x02" + scan + b"\xff\xd9"
+        start = time.monotonic()
+        assert _walk_jpeg(jpeg, {}) == len(jpeg)
+        assert time.monotonic() - start < 2
