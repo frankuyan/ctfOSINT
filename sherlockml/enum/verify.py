@@ -245,6 +245,30 @@ async def _call_gemini(
         return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
+_VERDICTS = ("real", "empty", "suspicious")
+
+
+def _as_text(value: Any) -> str | None:
+    """Coerce an LLM JSON field to a string (or None when empty).
+
+    The model summarises a page the target controls, so its output can be
+    steered into returning lists, objects or numbers where text is
+    expected; callers slice and measure these fields.
+    """
+    if value is None or value == "" or value == [] or value == {}:
+        return None
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _as_confidence(value: Any, default: float = 0.5) -> float:
+    try:
+        return min(1.0, max(0.0, float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_llm_response(raw: str) -> dict[str, Any]:
     """Parse the JSON verdict from the LLM response."""
     cleaned = raw.strip()
@@ -329,21 +353,28 @@ async def verify_profile(
 
         parsed = _parse_llm_response(raw_response)
 
+        if not isinstance(parsed, dict):
+            parsed = {"reason": f"Unexpected LLM response: {raw_response[:100]}"}
+
         raw_links = parsed.get("links") or []
+        if not isinstance(raw_links, list):
+            raw_links = [raw_links]
         links = [l for l in raw_links if isinstance(l, str) and l.strip()] or None
+
+        verdict = str(parsed.get("verdict", "suspicious")).strip().lower()
 
         return VerificationResult(
             platform=platform,
             url=url,
-            verdict=parsed.get("verdict", "suspicious"),
-            confidence=float(parsed.get("confidence", 0.5)),
-            reason=parsed.get("reason", ""),
-            bio=parsed.get("bio") or None,
-            join_date=parsed.get("join_date") or None,
-            activity=parsed.get("activity") or None,
-            display_name=parsed.get("display_name") or None,
+            verdict=verdict if verdict in _VERDICTS else "suspicious",
+            confidence=_as_confidence(parsed.get("confidence", 0.5)),
+            reason=_as_text(parsed.get("reason")) or "",
+            bio=_as_text(parsed.get("bio")),
+            join_date=_as_text(parsed.get("join_date")),
+            activity=_as_text(parsed.get("activity")),
+            display_name=_as_text(parsed.get("display_name")),
             links=links,
-            notable=parsed.get("notable") or None,
+            notable=_as_text(parsed.get("notable")),
         )
 
     except Exception as e:
