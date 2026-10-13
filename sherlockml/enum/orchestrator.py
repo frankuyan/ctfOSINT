@@ -13,6 +13,8 @@ from typing import Any, Callable, TYPE_CHECKING
 import aiohttp
 from aiohttp_socks import ProxyConnector
 
+from sherlockml.flags import compile_flag_patterns, find_flags
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -469,13 +471,10 @@ class Orchestrator:
 
         # Compile flag patterns
         compiled_patterns: list[re.Pattern[str]] = []
-        if flag_patterns:
-            compiled_patterns = [re.compile(p, re.IGNORECASE) for p in flag_patterns]
-        elif self.config.ctf.flag_patterns:
-            compiled_patterns = [
-                re.compile(p, re.IGNORECASE)
-                for p in self.config.ctf.flag_patterns
-            ]
+        if flag_patterns or self.config.ctf.flag_patterns:
+            compiled_patterns = compile_flag_patterns(
+                flag_patterns or self.config.ctf.flag_patterns
+            )
 
         # Track every username already searched (key: lowercased) along with
         # the hop depth it was discovered at.  Seeds are hop 0.
@@ -579,9 +578,9 @@ class Orchestrator:
                                 if isinstance(field_value, str):
                                     texts_to_scan.append(field_value)
                         for text in texts_to_scan:
-                            for pattern in compiled_patterns:
-                                matches = pattern.findall(text)
-                                results.flags_found.extend(matches)
+                            for flag in find_flags(text, compiled_patterns):
+                                if flag not in results.flags_found:
+                                    results.flags_found.append(flag)
 
                     if callback:
                         callback(result)
