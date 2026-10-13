@@ -96,8 +96,11 @@ class GraphvizExporter:
             label = f"{self._escape_dot_id(username)}\\n({self._escape_dot_id(platform)})"
             escaped_id = self._escape_dot_id(node_id)
             
+            shape = node_data.get("shape")
+            shape_attr = f"shape={shape}, " if shape else ""
+            
             lines.append(
-                f'  "{escaped_id}" [label="{label}", '
+                f'  "{escaped_id}" [{shape_attr}label="{label}", '
                 f'fillcolor="{color}", fontcolor="white"];'
             )
         

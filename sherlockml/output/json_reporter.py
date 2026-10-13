@@ -4,20 +4,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 from sherlockml import __version__
+from sherlockml.timeutil import utc_timestamp
 
 if TYPE_CHECKING:
     from sherlockml.enum.orchestrator import SearchResult, SearchResults
     from sherlockml.enum.verify import VerificationResult
-
-
-def utc_timestamp() -> str:
-    """Current UTC time as ISO 8601 with a ``Z`` suffix."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @dataclass
@@ -186,7 +181,12 @@ class JSONReporter:
                 "url": result.url,
                 "confidence_score": round(confidence, 3),
                 "response_time_ms": round(result.response_time * 1000, 2),
+                "checked_at": result.checked_at,
             }
+            
+            if result.hop:
+                entry["hop"] = result.hop
+                entry["discovered_from"] = result.discovered_from
             
             # Underscore keys (e.g. _raw_response) are internal captures
             metadata = {
@@ -226,6 +226,9 @@ class JSONReporter:
         
         if results.contacts:
             report["contacts"] = results.contacts
+        
+        if results.discoveries:
+            report["discoveries"] = results.discoveries
         
         if verification:
             report["verification"] = [v.to_dict() for v in verification]
