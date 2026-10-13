@@ -122,7 +122,10 @@ class ProxyConfig(BaseModel):
         auth = ""
         if self.username and self.password:
             auth = f"{self.username}:{self.password}@"
-        return f"{self.type}://{auth}{self.host}:{self.port}"
+        # Tor is a SOCKS5 proxy; socks5h is curl's spelling of SOCKS5 with
+        # remote DNS, which aiohttp-socks already does for socks5.
+        scheme = "socks5" if self.type in ("tor", "socks5h") else self.type
+        return f"{scheme}://{auth}{self.host}:{self.port}"
 
 
 class OutputConfig(BaseModel):

@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, TYPE_CHECKING
 
 import aiohttp
-from aiohttp_socks import ProxyConnector
 
 from sherlockml.flags import compile_flag_patterns, find_flags
+from sherlockml.net import create_session
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,11 @@ class SearchResults:
         if self.total_platforms == 0:
             return 0.0
         return self.successful_checks / self.total_platforms
+
+    def strip_raw_responses(self) -> None:
+        """Drop captured page bodies so they don't leak into exported output."""
+        for r in self.results:
+            r.metadata.pop("_raw_response", None)
     
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -225,19 +230,10 @@ class Orchestrator:
     
     async def _create_session(self) -> aiohttp.ClientSession:
         """Create an aiohttp session with optional proxy."""
-        connector = None
-        
-        if self.config.proxy.enabled:
-            connector = ProxyConnector.from_url(self.config.proxy.url)
-        
-        timeout = aiohttp.ClientTimeout(total=self.timeout)
-        
-        default_headers = {"User-Agent": self._get_user_agent()}
-
-        return aiohttp.ClientSession(
-            connector=connector,
-            timeout=timeout,
-            headers=default_headers,
+        return create_session(
+            self.config,
+            timeout=self.timeout,
+            headers={"User-Agent": self._get_user_agent()},
         )
     
     async def _rate_limit(self, platform_name: str, rate_limit: float) -> None:
@@ -437,6 +433,7 @@ class Orchestrator:
         discover: bool = False,
         max_discovered: int = 15,
         max_hops: int = 2,
+        retain_raw: bool = False,
     ) -> SearchResults:
         """Execute parallel searches across platforms.
 
@@ -453,6 +450,10 @@ class Orchestrator:
             max_hops: Maximum discovery depth.  Hop 0 = seed usernames the
                 caller passed in; hop 1 = usernames found in hop-0 profiles;
                 etc.  A profile at hop >= max_hops is not mined further.
+            retain_raw: Keep captured page bodies in ``metadata["_raw_response"]``
+                for post-processing (verification, evidence capture).  The
+                caller is then responsible for calling
+                ``SearchResults.strip_raw_responses()`` before export.
 
         Returns:
             Aggregated SearchResults
@@ -606,9 +607,8 @@ class Orchestrator:
 
         # Strip raw responses from metadata unless explicitly requested,
         # to avoid leaking PII/secrets in exported output.
-        if not self.config.output.include_raw_responses:
-            for r in results.results:
-                r.metadata.pop("_raw_response", None)
+        if not retain_raw and not self.config.output.include_raw_responses:
+            results.strip_raw_responses()
 
         return results
     

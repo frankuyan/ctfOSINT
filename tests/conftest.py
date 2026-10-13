@@ -5,6 +5,50 @@ from typing import Generator
 
 import pytest
 
+from sherlockml.enum.platform_base import BasePlatform, PlatformResult
+
+
+class StubPlatform(BasePlatform):
+    """Offline platform for orchestrator tests.
+
+    ``pages`` maps username -> raw HTML for accounts that exist; any other
+    username is reported as not found.  With ``pages=None`` every username
+    exists.  ``bio`` is returned as metadata on every hit.
+    """
+
+    name = "stub"
+    display_name = "Stub"
+    base_url = "https://stub.example"
+    url_template = "https://stub.example/{username}"
+    rate_limit_rpm = 6000.0
+
+    def __init__(self, pages=None, bio="", name=None, metadata=None):
+        super().__init__()
+        self.pages = pages
+        self.bio = bio
+        self.extra_metadata = metadata or {}
+        if name:
+            self.name = name
+            self.url_template = f"https://{name}.example/{{username}}"
+
+    async def check_username(self, username, session):
+        if self.pages is not None and username not in self.pages:
+            return PlatformResult(exists=False, confidence=0.95)
+        raw = self.pages.get(username) if self.pages is not None else None
+        return PlatformResult(
+            exists=True,
+            url=self.get_url(username),
+            metadata={"bio": self.bio, **self.extra_metadata},
+            confidence=0.9,
+            raw_response=raw,
+        )
+
+
+@pytest.fixture
+def stub_platform():
+    """Factory for offline StubPlatform instances."""
+    return StubPlatform
+
 
 @pytest.fixture
 def temp_config_dir(tmp_path: Path) -> Path:
