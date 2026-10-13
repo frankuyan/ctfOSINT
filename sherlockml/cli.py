@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import click
 from rich.console import Console
@@ -15,6 +15,9 @@ from rich.table import Table
 from sherlockml import __version__
 from sherlockml.config import Config, load_config, create_default_config_file
 from sherlockml.net import apply_proxy_option, create_session
+
+if TYPE_CHECKING:
+    from sherlockml.extract.image_forensics import ImageReport
 
 
 console = Console()
