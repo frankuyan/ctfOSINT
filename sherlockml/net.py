@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 import aiohttp
 from aiohttp_socks import ProxyConnector
 
+from sherlockml.tor import rotation_enabled
+
 if TYPE_CHECKING:
     from sherlockml.config import Config
 
@@ -31,7 +33,13 @@ def create_session(
         timeout: Total request timeout in seconds (default: search.request_timeout)
         headers: Default headers for every request
     """
-    connector = ProxyConnector.from_url(config.proxy.url) if config.proxy.enabled else None
+    connector = None
+    if config.proxy.enabled:
+        # With identity rotation, pooled keep-alive connections would stay
+        # on the old Tor circuit; open a fresh stream per request instead.
+        connector = ProxyConnector.from_url(
+            config.proxy.url, force_close=rotation_enabled(config.proxy),
+        )
     return aiohttp.ClientSession(
         connector=connector,
         timeout=aiohttp.ClientTimeout(total=timeout or config.search.request_timeout),
