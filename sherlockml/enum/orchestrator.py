@@ -14,6 +14,7 @@ import aiohttp
 
 from sherlockml.flags import compile_flag_patterns, find_flags
 from sherlockml.net import create_session
+from sherlockml.timeutil import utc_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,17 @@ class SearchResult:
     response_time: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    # UTC time the check completed (ISO 8601); part of the evidence trail
+    checked_at: str = ""
+    # Discovery depth of ``username``: 0 for seeds, N for usernames found
+    # N links away, with the "platform:username" profile that linked it
+    hop: int = 0
+    discovered_from: str | None = None
+
+    @property
+    def node_id(self) -> str:
+        """Stable "platform:username" identifier used for provenance links."""
+        return f"{self.platform}:{self.username}"
 
 
 @dataclass
@@ -134,6 +146,9 @@ class SearchResults:
     elapsed_time: float = 0.0
     flags_found: list[str] = field(default_factory=list)
     contacts: list[str] = field(default_factory=list)
+    # One entry per username added by --deep discovery:
+    # {"username", "hop", "source"} where source is a SearchResult.node_id
+    discoveries: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def found_results(self) -> list[SearchResult]:
@@ -167,6 +182,9 @@ class SearchResults:
                     "response_time": r.response_time,
                     "metadata": r.metadata,
                     "error": r.error,
+                    "checked_at": r.checked_at,
+                    "hop": r.hop,
+                    "discovered_from": r.discovered_from,
                 }
                 for r in self.results
             ],
@@ -179,6 +197,7 @@ class SearchResults:
             },
             "flags_found": self.flags_found,
             "contacts": self.contacts,
+            "discoveries": self.discoveries,
         }
 
 
@@ -306,6 +325,7 @@ class Orchestrator:
                         response_time=result.response_time,
                         metadata=metadata,
                         error=result.error,
+                        checked_at=utc_timestamp(),
                     )
 
                 except asyncio.TimeoutError:
@@ -317,6 +337,7 @@ class Orchestrator:
                         platform=platform.name,
                         exists=False,
                         error="Request timed out",
+                        checked_at=utc_timestamp(),
                     )
 
                 except Exception as e:
@@ -328,6 +349,7 @@ class Orchestrator:
                         platform=platform.name,
                         exists=False,
                         error=str(e),
+                        checked_at=utc_timestamp(),
                     )
 
             # Unreachable: the loop always returns within try/except blocks.
@@ -480,6 +502,8 @@ class Orchestrator:
         # Track every username already searched (key: lowercased) along with
         # the hop depth it was discovered at.  Seeds are hop 0.
         username_hop: dict[str, int] = {u.lower(): 0 for u in usernames}
+        # Which found profile (node_id) first linked each discovered username
+        username_source: dict[str, str] = {}
         searched_usernames: set[str] = set(username_hop)
         discovered_count = 0
 
@@ -520,6 +544,9 @@ class Orchestrator:
                         cancelled_count += 1
                         continue
 
+                    seen_key = result.username.lower()
+                    result.hop = username_hop.get(seen_key, 0)
+                    result.discovered_from = username_source.get(seen_key)
                     results.results.append(result)
 
                     if result.error is None:
@@ -547,7 +574,9 @@ class Orchestrator:
                             next_hop = current_hop + 1
                             if next_hop <= max_hops:
                                 new_usernames = self._extract_discovered_usernames(result)
-                                for new_u in new_usernames:
+                                # Sorted so the --max-discovered cut is
+                                # reproducible across runs
+                                for new_u in sorted(new_usernames):
                                     if discovered_count >= max_discovered:
                                         break
                                     key = new_u.lower()
@@ -555,8 +584,14 @@ class Orchestrator:
                                         continue
                                     searched_usernames.add(key)
                                     username_hop[key] = next_hop
+                                    username_source[key] = result.node_id
                                     discovered_count += 1
                                     results.variants_searched.append(new_u)
+                                    results.discoveries.append({
+                                        "username": new_u,
+                                        "hop": next_hop,
+                                        "source": result.node_id,
+                                    })
                                     results.total_platforms += len(platforms)
                                     logger.info(
                                         "Discovered username %r (hop %d) from %s, adding to search",
