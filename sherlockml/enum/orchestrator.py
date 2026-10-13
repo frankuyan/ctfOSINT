@@ -15,6 +15,7 @@ import aiohttp
 from sherlockml.flags import compile_flag_patterns, find_flags
 from sherlockml.net import create_session
 from sherlockml.timeutil import utc_timestamp
+from sherlockml.tor import identity_rotation
 
 logger = logging.getLogger(__name__)
 
@@ -507,7 +508,7 @@ class Orchestrator:
         searched_usernames: set[str] = set(username_hop)
         discovered_count = 0
 
-        async with await self._create_session() as session:
+        async with identity_rotation(self.config), await self._create_session() as session:
             pending: set[asyncio.Task[SearchResult]] = set()
 
             for username in usernames:

@@ -64,8 +64,9 @@ class TestCLI:
     @patch("sherlockml.cli.load_config")
     def test_search_execution(self, mock_load_config, mock_get_registry, mock_orchestrator, runner):
         """Test search command execution with various options."""
-        mock_config = MagicMock()
-        mock_load_config.return_value = mock_config
+        from sherlockml.config import Config
+
+        mock_load_config.return_value = Config()
         
         mock_registry = MagicMock()
         mock_get_registry.return_value = mock_registry
