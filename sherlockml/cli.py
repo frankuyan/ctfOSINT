@@ -14,6 +14,7 @@ from rich.table import Table
 
 from sherlockml import __version__
 from sherlockml.config import Config, load_config, create_default_config_file
+from sherlockml.net import apply_proxy_option, create_session
 
 
 console = Console()
@@ -117,19 +118,7 @@ async def search(
     if rate_limit is not None:
         config.search.default_rate_limit = rate_limit
     if proxy:
-        config.proxy.enabled = True
-        from urllib.parse import urlparse
-        parsed = urlparse(proxy)
-        if parsed.scheme:
-            config.proxy.type = parsed.scheme
-        if parsed.hostname:
-            config.proxy.host = parsed.hostname
-        if parsed.port:
-            config.proxy.port = parsed.port
-        if parsed.username:
-            config.proxy.username = parsed.username
-        if parsed.password:
-            config.proxy.password = parsed.password
+        apply_proxy_option(config, proxy)
     if fast_fail:
         config.ctf.fast_fail = True
     
@@ -202,6 +191,9 @@ async def search(
             discover=deep,
             max_hops=max_hops,
             max_discovered=max_discovered,
+            # Keep captured pages in memory so verification can reuse them
+            # instead of fetching every profile a second time.
+            retain_raw=True,
         )
         
         progress.update(task, completed=True)
@@ -243,14 +235,12 @@ async def search(
 
             # Fetch profile pages for results that used JSON APIs
             if needs_fetch:
-                import aiohttp as _aiohttp
                 from sherlockml.enum.platform_base import DEFAULT_USER_AGENT
 
                 console.print()
                 console.print(
                     f"[dim]Fetching {len(needs_fetch)} profile pages for verification...[/dim]"
                 )
-                timeout = _aiohttp.ClientTimeout(total=15)
                 fetch_headers = {
                     "User-Agent": DEFAULT_USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -263,7 +253,8 @@ async def search(
                     "Sec-Fetch-User": "?1",
                     "Upgrade-Insecure-Requests": "1",
                 }
-                async with _aiohttp.ClientSession(timeout=timeout) as fetch_session:
+                # Profile pages are target-facing: honour the proxy
+                async with create_session(config, timeout=15) as fetch_session:
                     for r in needs_fetch:
                         try:
                             async with fetch_session.get(
@@ -273,6 +264,7 @@ async def search(
                             ) as resp:
                                 if resp.status == 200:
                                     body = await resp.text(errors="replace")
+                                    r.metadata["_raw_response"] = body
                                     to_verify.append({
                                         "platform": r.platform,
                                         "url": r.url,
@@ -421,10 +413,10 @@ async def search(
         for flag in results.flags_found:
             console.print(f"  {flag}")
     
-    # Attach verification data to results dict for output
-    if verification_results:
-        results_dict = results.to_dict()
-        results_dict["verification"] = [v.to_dict() for v in verification_results]
+    # Raw page bodies were retained for verification; drop them before
+    # export unless the config explicitly asks for them.
+    if not config.output.include_raw_responses:
+        results.strip_raw_responses()
 
     # Save output
     if output is not None or output_format in ('md', 'both'):
@@ -593,6 +585,7 @@ def rag_query(ctx: click.Context, query: str, top_k: int, threshold: float) -> N
 @click.option('--gists/--no-gists', default=True, help='Include gists')
 @click.option('--depth', '-d', type=int, default=10, help='Search depth (pages)')
 @click.option('--output', '-o', type=click.Path(path_type=Path), help='Output file')
+@click.option('--proxy', type=str, help='Proxy URL (socks5://host:port)')
 @click.pass_context
 @async_command
 async def scan_github(
@@ -602,6 +595,7 @@ async def scan_github(
     gists: bool,
     depth: int,
     output: Path | None,
+    proxy: str | None,
 ) -> None:
     """Deep GitHub enumeration for USERNAME.
     
@@ -611,17 +605,18 @@ async def scan_github(
     
         sherlockml scan-github targetuser --commits --depth 20
     """
-    import aiohttp
     from sherlockml.extract.github_scanner import GitHubScanner
     
     config: Config = ctx.obj['config']
+    if proxy:
+        apply_proxy_option(config, proxy)
     github_config = config.get_platform('github')
     
     scanner = GitHubScanner(auth_token=github_config.auth_token)
     
     console.print(f"Scanning GitHub user: [green]{username}[/green]")
     
-    async with aiohttp.ClientSession() as session:
+    async with create_session(config, timeout=60) as session:
         result = await scanner.scan_user(
             username, session,
             commits=commits,
@@ -667,6 +662,7 @@ async def scan_github(
 @click.option('--max-snapshots', type=int, default=5, help='Max snapshots to fetch content from')
 @click.option('--output', '-o', type=click.Path(path_type=Path), help='Output file (JSON)')
 @click.option('--rate-limit', '-r', type=float, default=10.0, help='Requests per minute to Wayback API')
+@click.option('--proxy', type=str, help='Proxy URL (socks5://host:port)')
 @click.pass_context
 @async_command
 async def wayback(
@@ -681,6 +677,7 @@ async def wayback(
     max_snapshots: int,
     output: Path | None,
     rate_limit: float,
+    proxy: str | None,
 ) -> None:
     """Query the Wayback Machine for historical OSINT data.
 
@@ -696,11 +693,12 @@ async def wayback(
 
         sherlockml wayback https://ctf-site.com/challenge --from-date 2023 --diff
     """
-    import aiohttp
     import json
     from sherlockml.extract.wayback import WaybackIntegration
 
     config = ctx.obj['config']
+    if proxy:
+        apply_proxy_option(config, proxy)
     wb = WaybackIntegration(rate_limit=rate_limit)
 
     # Get flag patterns from config
@@ -714,7 +712,8 @@ async def wayback(
         console.print(f"Date range: {from_date or '...'} to {to_date or '...'}")
     console.print()
 
-    async with aiohttp.ClientSession() as session:
+    # CDX wildcard queries can be slow; keep aiohttp's default 5 min budget
+    async with create_session(config, timeout=300) as session:
         if mode == 'url':
             with Progress(
                 SpinnerColumn(),

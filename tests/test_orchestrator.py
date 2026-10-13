@@ -206,3 +206,26 @@ class TestPatternCount:
 
     def test_at_least_25_platforms(self):
         assert len(_SOCIAL_PATTERNS) >= 25
+
+
+class TestRawResponseRetention:
+    """Raw page bodies are stripped by default but can be kept for post-processing."""
+
+    async def test_stripped_by_default(self, stub_platform):
+        from sherlockml.config import Config
+
+        platform = stub_platform(pages={"alice": "<html>alice page</html>"})
+        results = await Orchestrator(Config()).search(["alice"], [platform])
+        assert "_raw_response" not in results.found_results[0].metadata
+
+    async def test_retained_when_requested(self, stub_platform):
+        from sherlockml.config import Config
+
+        platform = stub_platform(pages={"alice": "<html>alice page</html>"})
+        results = await Orchestrator(Config()).search(
+            ["alice"], [platform], retain_raw=True,
+        )
+        found = results.found_results[0]
+        assert found.metadata["_raw_response"] == "<html>alice page</html>"
+        results.strip_raw_responses()
+        assert "_raw_response" not in found.metadata
