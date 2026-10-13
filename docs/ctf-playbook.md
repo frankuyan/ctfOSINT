@@ -386,6 +386,10 @@ sherlockml wayback target.com --mode domain --proxy socks5://127.0.0.1:9050
 DNS is resolved by the SOCKS5 proxy, so hostnames don't leak to the local
 resolver. `type: tor` and `socks5h://` are accepted as aliases for socks5.
 
+To get a fresh exit IP for each run and every few minutes during long
+scans, enable identity rotation (requires `ControlPort 9051` plus
+`HashedControlPassword` or `CookieAuthentication 1` in torrc):
+
 ```yaml
 # config.yaml
 proxy:
@@ -394,6 +398,8 @@ proxy:
   host: 127.0.0.1
   port: 9050
   rotate: true
+  rotate_interval: 120
+  control_password: ${TOR_CONTROL_PASSWORD}   # omit for cookie auth
 ```
 
 ### Rate Limiting

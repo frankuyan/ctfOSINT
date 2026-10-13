@@ -253,9 +253,36 @@ proxy:
   username: ${PROXY_USERNAME}
   password: ${PROXY_PASSWORD}
 
-  # Proxy rotation (when using proxy lists)
+  # Tor identity rotation: SIGNAL NEWNYM on the control port at the start
+  # of each search/wayback/scan-github run and every rotate_interval seconds
   rotate: false
+  rotate_interval: 300         # seconds; minimum 10 (Tor's NEWNYM rate limit)
+  control_port: 9051           # Tor ControlPort on the same host as the proxy
+  control_password: ${TOR_CONTROL_PASSWORD}  # only for HashedControlPassword
+  rotate_enabled: true         # kill switch: false disables rotation entirely
 ```
+
+**All target-facing traffic uses this proxy**: search, `--verify` page
+fetches, `wayback` and `scan-github`. `--proxy URL` on any of those
+commands overrides it. `type: tor` and `socks5h` are accepted as aliases for
+`socks5`; SOCKS5 already resolves DNS through the proxy.
+
+**Identity rotation** needs Tor's control port enabled. In `torrc`, pick one:
+
+```
+ControlPort 9051
+# Option 1: password auth. Generate the hash with: tor --hash-password 'secret'
+# and set proxy.control_password to the same secret.
+HashedControlPassword 16:...
+# Option 2: cookie auth. SherlockML reads the cookie file Tor reports,
+# so it must be readable by the user running sherlockml.
+CookieAuthentication 1
+```
+
+While rotating, HTTP keep-alive is turned off so each request opens a new Tor
+stream and picks up the new circuits. If the control port is unreachable or
+rejects authentication, one warning is logged and the run continues without
+rotating.
 
 ---
 
@@ -390,7 +417,8 @@ proxy:
   type: socks5
   host: 127.0.0.1
   port: 9050
-  rotate: true
+  rotate: true                 # needs Tor's ControlPort, see Proxy Configuration
+  control_password: ${TOR_CONTROL_PASSWORD}
 
 search:
   max_concurrent: 3            # Lower concurrency
