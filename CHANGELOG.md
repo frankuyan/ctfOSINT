@@ -28,6 +28,13 @@ by intent (Added / Changed / Fixed) under each release.
   type and offset, custom PNG chunks, and flags anywhere in the file.
   Pixel data is never decoded; metadata is markup-escaped before printing.
 - **`--proxy` on `wayback` and `scan-github`.**
+- **Tor identity rotation (`proxy.rotate: true`).** `search`, `wayback` and
+  `scan-github` send `SIGNAL NEWNYM` over the Tor control port at the start
+  of a run and every `rotate_interval` seconds (minimum 10). Authenticates
+  with the new `proxy.control_password`, Tor's cookie file, or no auth;
+  keep-alive is disabled while rotating so requests move to the new
+  circuits. Failures log one warning and the run continues. These settings
+  were previously documented but had no effect.
 - **JSON report now includes `contacts` and `verification`.**
 
 - **Multi-hop cross-platform discovery.** `--deep` now follows discovered
@@ -74,6 +81,8 @@ by intent (Added / Changed / Fixed) under each release.
   fetching every HTML profile a second time; only API-backed platforms are
   fetched.
 - **`scan-github` also scans repo and gist descriptions for flags.**
+- **`scan-github` uses `ctf.flag_patterns`** like `search` and `wayback`
+  instead of its built-in regex only.
 - **`--variants` and `--no-variants` are now mutually exclusive.** Passing
   both raises a `click.UsageError` instead of silently disabling basic
   variants while applying full expansion.
@@ -85,6 +94,14 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **Hostile text could crash or spoof terminal output.** Profile bios, LLM
+  summaries, archived page diffs, robots.txt entries and commit author emails
+  were interpolated into Rich markup, so a value like `[/i]` raised
+  `MarkupError` after the scan finished and `[red]...` could restyle output.
+  All such values are now escaped.
+- **Malformed LLM verdicts crashed `--verify`.** A prompt-injected page could
+  make the model return `null`/objects/lists for text fields; they are now
+  coerced to text, verdicts are normalised and confidence clamped to [0, 1].
 - **Flags were reported as `"flag"` instead of `"flag{...}"`.** The default
   pattern `(flag|ctf|...)\{...\}` has a capture group and `re.findall`
   returns the group. `search`, `scan-github` and `wayback` now share

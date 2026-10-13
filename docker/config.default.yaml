@@ -368,10 +368,14 @@ proxy:
   host: tor
   port: 9050
   
-  # Rotate identity settings
-  rotate_enabled: true
-  rotate_interval: 300  # seconds
+  # Tor identity rotation (SIGNAL NEWNYM on the control port).  Set rotate
+  # to true once the Tor service's control port accepts our auth: set
+  # control_password for HashedControlPassword, or omit it for cookie/no auth.
+  rotate: false
+  rotate_enabled: true  # kill switch
+  rotate_interval: 300  # seconds (minimum 10)
   control_port: 9051
+  # control_password: ${TOR_CONTROL_PASSWORD}
 
 # =============================================================================
 # Output Configuration
