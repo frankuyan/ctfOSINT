@@ -426,8 +426,8 @@ async def search(
         output = output or Path(f"sherlockml_{username}")
         
         if output_format in ('json', 'both'):
-            reporter = JSONReporter()
-            report = reporter.generate_report(results)
+            reporter = JSONReporter(include_raw=config.output.include_raw_responses)
+            report = reporter.generate_report(results, verification=verification_results)
             json_path = output.with_suffix('.json')
             reporter.save(report, json_path)
             console.print(f"\n[dim]Saved JSON: {json_path}[/dim]")

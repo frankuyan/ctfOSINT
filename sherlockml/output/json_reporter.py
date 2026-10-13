@@ -12,6 +12,12 @@ from sherlockml import __version__
 
 if TYPE_CHECKING:
     from sherlockml.enum.orchestrator import SearchResult, SearchResults
+    from sherlockml.enum.verify import VerificationResult
+
+
+def utc_timestamp() -> str:
+    """Current UTC time as ISO 8601 with a ``Z`` suffix."""
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @dataclass
@@ -153,12 +159,14 @@ class JSONReporter:
         self,
         results: "SearchResults",
         include_negative: bool = False,
+        verification: list["VerificationResult"] | None = None,
     ) -> dict[str, Any]:
         """Generate structured JSON report.
         
         Args:
             results: Search results to report
             include_negative: Include platforms where username wasn't found
+            verification: LLM verification verdicts to attach
             
         Returns:
             Dictionary ready for JSON serialization
@@ -180,8 +188,13 @@ class JSONReporter:
                 "response_time_ms": round(result.response_time * 1000, 2),
             }
             
-            if result.metadata:
-                entry["metadata"] = result.metadata
+            # Underscore keys (e.g. _raw_response) are internal captures
+            metadata = {
+                k: v for k, v in result.metadata.items()
+                if self.include_raw or not k.startswith("_")
+            }
+            if metadata:
+                entry["metadata"] = metadata
             
             if result.error:
                 entry["error"] = result.error
@@ -193,7 +206,7 @@ class JSONReporter:
         
         report = {
             "sherlockml_version": __version__,
-            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "generated_at": utc_timestamp(),
             "query": {
                 "target_username": results.query_username,
                 "variants_searched": results.variants_searched,
@@ -210,6 +223,12 @@ class JSONReporter:
         
         if results.flags_found:
             report["flags"] = results.flags_found
+        
+        if results.contacts:
+            report["contacts"] = results.contacts
+        
+        if verification:
+            report["verification"] = [v.to_dict() for v in verification]
         
         if results.errors:
             report["errors"] = results.errors[:20]  # Limit error list

@@ -76,7 +76,7 @@ class GraphvizExporter:
         """
         lines = [
             "digraph SocialNetwork {",
-            f'  label="{title}";',
+            f'  label="{self._escape_dot_id(title)}";',
             f'  rankdir={self.rankdir};',
             f'  fontname="{self.font_name}";',
             f'  node [shape={self.node_shape}, style=filled, fontname="{self.font_name}"];',
@@ -93,7 +93,7 @@ class GraphvizExporter:
             color = self.PLATFORM_COLORS.get(platform.lower(), self.DEFAULT_COLOR)
             
             # Escape special characters
-            label = f"{username}\\n({platform})"
+            label = f"{self._escape_dot_id(username)}\\n({self._escape_dot_id(platform)})"
             escaped_id = self._escape_dot_id(node_id)
             
             lines.append(
@@ -133,8 +133,13 @@ class GraphvizExporter:
         return dot_content
     
     def _escape_dot_id(self, node_id: str) -> str:
-        """Escape special characters in DOT node IDs."""
-        return str(node_id).replace('"', '\\"').replace("\\", "\\\\")
+        """Escape special characters for a double-quoted DOT string.
+
+        Backslashes must be escaped before quotes, otherwise the backslash
+        added in front of each quote gets doubled and the quote is left
+        unescaped.
+        """
+        return str(node_id).replace("\\", "\\\\").replace('"', '\\"')
     
     def export_subgraph(
         self,

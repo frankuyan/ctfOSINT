@@ -143,3 +143,49 @@ class TestJSONReporter:
         json_str = reporter.to_json_string(report)
         assert isinstance(json_str, str)
         assert "github" in json_str
+
+
+class TestReportCompleteness:
+    """Contacts, verification and timestamps must reach the saved report."""
+
+    @pytest.fixture
+    def results(self):
+        results = SearchResults(query_username="alice")
+        results.results = [SearchResult(
+            username="alice", platform="github", exists=True,
+            url="https://github.com/alice",
+            metadata={"bio": "hi", "_raw_response": "<html>secret</html>"},
+        )]
+        results.found_count = 1
+        results.contacts = ["alice@proton.me"]
+        return results
+
+    def test_contacts_included(self, results):
+        report = JSONReporter().generate_report(results)
+        assert report["contacts"] == ["alice@proton.me"]
+
+    def test_verification_included(self, results):
+        from sherlockml.enum.verify import VerificationResult
+
+        verdict = VerificationResult(
+            platform="github", url="https://github.com/alice",
+            verdict="real", confidence=0.9, reason="active account",
+        )
+        report = JSONReporter().generate_report(results, verification=[verdict])
+        assert report["verification"][0]["verdict"] == "real"
+
+    def test_generated_at_is_valid_utc_iso(self, results):
+        from datetime import datetime
+
+        stamp = JSONReporter().generate_report(results)["generated_at"]
+        assert stamp.endswith("Z") and "+00:00" not in stamp
+        assert datetime.fromisoformat(stamp).utcoffset().total_seconds() == 0
+
+    def test_raw_response_excluded_by_default(self, results):
+        report = JSONReporter().generate_report(results)
+        assert "_raw_response" not in report["results"][0]["metadata"]
+        assert report["results"][0]["metadata"]["bio"] == "hi"
+
+    def test_raw_response_included_when_requested(self, results):
+        report = JSONReporter(include_raw=True).generate_report(results)
+        assert report["results"][0]["metadata"]["_raw_response"] == "<html>secret</html>"
