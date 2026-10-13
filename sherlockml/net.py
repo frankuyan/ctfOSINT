@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 def create_session(
-    config: "Config",
+    config: Config,
     *,
     timeout: float | None = None,
     headers: dict[str, str] | None = None,
@@ -39,7 +39,7 @@ def create_session(
     )
 
 
-def apply_proxy_option(config: "Config", proxy: str) -> None:
+def apply_proxy_option(config: Config, proxy: str) -> None:
     """Enable the proxy described by a ``scheme://[user:pass@]host:port`` URL."""
     parsed = urlparse(proxy)
     config.proxy.enabled = True
