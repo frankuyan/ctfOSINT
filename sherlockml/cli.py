@@ -73,6 +73,8 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.option('--max-discovered', type=int, default=15, show_default=True, help='Maximum total discovered usernames across all hops (only meaningful with --deep)')
 @click.option('--verify', is_flag=True, help='Use LLM to verify found profiles are real')
 @click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config)')
+@click.option('--evidence-dir', type=click.Path(file_okay=False, path_type=Path), help='Save each found profile plus a SHA-256 manifest into a timestamped case folder here')
+@click.option('--graph', 'graph_path', type=click.Path(dir_okay=False, path_type=Path), help='Export the discovery graph (.graphml, .dot, or .svg/.png/.pdf via Graphviz)')
 @click.pass_context
 @async_command
 async def search(
@@ -92,6 +94,8 @@ async def search(
     max_discovered: int,
     verify: bool,
     llm_key: str | None,
+    evidence_dir: Path | None,
+    graph_path: Path | None,
 ) -> None:
     """Search for USERNAME across platforms.
 
@@ -108,6 +112,8 @@ async def search(
         sherlockml search john_doe --deep --max-time 120 -o results.json
 
         sherlockml search john_doe --fast-fail --variants
+
+        sherlockml search john_doe --deep --evidence-dir cases/ --graph graph.graphml
     """
     if variants and no_variants:
         raise click.UsageError("--variants and --no-variants are mutually exclusive")
@@ -173,7 +179,8 @@ async def search(
         nonlocal found_count
         if result.exists:
             found_count += 1
-            console.print(f"  [green]✓[/green] {result.platform}: {result.url}")
+            via = f" [dim](via {result.discovered_from})[/dim]" if result.discovered_from else ""
+            console.print(f"  [green]✓[/green] {result.platform}: {result.url}{via}")
     
     with Progress(
         SpinnerColumn(),
@@ -323,6 +330,14 @@ async def search(
         for email in results.contacts:
             console.print(f"  [cyan]{email}[/cyan]")
 
+    if results.discoveries:
+        console.print()
+        console.print("[bold]Discovered usernames:[/bold]")
+        for found in results.discoveries:
+            console.print(
+                f"  [cyan]{found['username']}[/cyan] [dim]hop {found['hop']} via {found['source']}[/dim]"
+            )
+
     # Show verification summary if we ran it
     if verification_results:
         real_count = sum(1 for v in verification_results if v.verdict == "real")
@@ -413,8 +428,27 @@ async def search(
         for flag in results.flags_found:
             console.print(f"  {flag}")
     
-    # Raw page bodies were retained for verification; drop them before
-    # export unless the config explicitly asks for them.
+    if evidence_dir is not None:
+        from sherlockml.output.evidence import EvidenceWriter
+
+        case_dir = EvidenceWriter(evidence_dir).write(
+            results,
+            verification=verification_results,
+            proxy_used=config.proxy.enabled,
+        )
+        console.print(f"\n[dim]Evidence saved: {case_dir} (verify with: sha256sum -c SHA256SUMS)[/dim]")
+
+    if graph_path is not None:
+        from sherlockml.output.graph_builder import export_graph
+
+        written = export_graph(results, graph_path)
+        if written != graph_path:
+            console.print(f"[yellow]Graphviz 'dot' not available; wrote DOT source instead: {written}[/yellow]")
+        else:
+            console.print(f"[dim]Saved graph: {written}[/dim]")
+
+    # Raw page bodies were retained for verification and evidence; drop
+    # them before export unless the config explicitly asks for them.
     if not config.output.include_raw_responses:
         results.strip_raw_responses()
 
