@@ -9,6 +9,7 @@ from typing import Any, TYPE_CHECKING
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
@@ -56,7 +57,7 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
     try:
         ctx.obj['config'] = load_config(config)
     except Exception as e:
-        console.print(f"[red]Error loading config: {e}[/red]")
+        console.print(f"[red]Error loading config: {escape(str(e))}[/red]")
         ctx.obj['config'] = Config()
 
 
@@ -153,7 +154,7 @@ async def search(
     usernames = list(dict.fromkeys(usernames))  # Dedupe preserving order
 
     console.print(f"[bold blue]SherlockML[/bold blue] v{__version__}")
-    console.print(f"Searching for [green]{username}[/green] ({len(usernames)} variant{'s' if len(usernames) != 1 else ''})")
+    console.print(f"Searching for [green]{escape(username)}[/green] ({len(usernames)} variant{'s' if len(usernames) != 1 else ''})")
     if deep:
         console.print(
             f"[dim]Deep mode: hops≤{max_hops}, up to {max_discovered} discovered usernames[/dim]"
@@ -182,8 +183,8 @@ async def search(
         nonlocal found_count
         if result.exists:
             found_count += 1
-            via = f" [dim](via {result.discovered_from})[/dim]" if result.discovered_from else ""
-            console.print(f"  [green]✓[/green] {result.platform}: {result.url}{via}")
+            via = f" [dim](via {escape(result.discovered_from)})[/dim]" if result.discovered_from else ""
+            console.print(f"  [green]✓[/green] {result.platform}: {escape(result.url or '')}{via}")
     
     with Progress(
         SpinnerColumn(),
@@ -287,7 +288,7 @@ async def search(
                                     )
                         except Exception as e:
                             console.print(
-                                f"  [dim yellow]Could not fetch {r.platform}: {e}[/dim yellow]"
+                                f"  [dim yellow]Could not fetch {r.platform}: {escape(str(e))}[/dim yellow]"
                             )
 
             if to_verify:
@@ -331,14 +332,14 @@ async def search(
         console.print()
         console.print("[bold]Contacts:[/bold]")
         for email in results.contacts:
-            console.print(f"  [cyan]{email}[/cyan]")
+            console.print(f"  [cyan]{escape(email)}[/cyan]")
 
     if results.discoveries:
         console.print()
         console.print("[bold]Discovered usernames:[/bold]")
         for found in results.discoveries:
             console.print(
-                f"  [cyan]{found['username']}[/cyan] [dim]hop {found['hop']} via {found['source']}[/dim]"
+                f"  [cyan]{escape(found['username'])}[/cyan] [dim]hop {found['hop']} via {escape(found['source'])}[/dim]"
             )
 
     # Show verification summary if we ran it
@@ -377,30 +378,31 @@ async def search(
                 else:
                     verdict_str = f"[yellow]SUS[/yellow] [dim]{v.confidence:.0%}[/dim]"
 
-                # Build rich details block
+                # Build rich details block.  Every field is LLM output about
+                # a page the target controls, so escape it before markup.
                 details_parts = []
                 if v.display_name:
-                    details_parts.append(f"[bold]{v.display_name}[/bold]")
+                    details_parts.append(f"[bold]{escape(v.display_name)}[/bold]")
                 if v.bio:
                     bio_text = v.bio[:80] + "..." if len(v.bio) > 80 else v.bio
-                    details_parts.append(f"[italic]{bio_text}[/italic]")
+                    details_parts.append(f"[italic]{escape(bio_text)}[/italic]")
                 if v.join_date:
-                    details_parts.append(f"[dim]Joined:[/dim] {v.join_date}")
+                    details_parts.append(f"[dim]Joined:[/dim] {escape(v.join_date)}")
                 if v.activity:
-                    details_parts.append(f"[dim]Activity:[/dim] {v.activity}")
+                    details_parts.append(f"[dim]Activity:[/dim] {escape(v.activity)}")
                 if v.notable:
-                    details_parts.append(f"[dim]Info:[/dim] {v.notable}")
+                    details_parts.append(f"[dim]Info:[/dim] {escape(v.notable)}")
                 if v.links:
                     for link in v.links[:3]:
-                        details_parts.append(f"[dim]Link:[/dim] [underline]{link}[/underline]")
+                        details_parts.append(f"[dim]Link:[/dim] [underline]{escape(link)}[/underline]")
                 if v.error:
-                    details_parts.append(f"[red]Error: {v.error[:50]}[/red]")
+                    details_parts.append(f"[red]Error: {escape(v.error[:50])}[/red]")
                 if not details_parts:
                     reason = v.reason[:80] + "..." if len(v.reason) > 80 else v.reason
-                    details_parts.append(reason)
+                    details_parts.append(escape(reason))
 
                 vtable.add_row(
-                    f"{v.platform}\n[dim]{v.url}[/dim]",
+                    f"{v.platform}\n[dim]{escape(v.url)}[/dim]",
                     verdict_str,
                     "\n".join(details_parts),
                 )
@@ -421,7 +423,7 @@ async def search(
 
             for v in sorted(empty_results, key=lambda x: x.platform):
                 reason = v.reason[:70] + "..." if len(v.reason) > 70 else v.reason
-                etable.add_row(v.platform, reason)
+                etable.add_row(v.platform, escape(reason))
 
             console.print(etable)
 
@@ -429,7 +431,7 @@ async def search(
         console.print()
         console.print("[bold red]🚩 FLAGS FOUND:[/bold red]")
         for flag in results.flags_found:
-            console.print(f"  {flag}")
+            console.print(f"  {escape(flag)}")
     
     if evidence_dir is not None:
         from sherlockml.output.evidence import EvidenceWriter
@@ -439,16 +441,16 @@ async def search(
             verification=verification_results,
             proxy_used=config.proxy.enabled,
         )
-        console.print(f"\n[dim]Evidence saved: {case_dir} (verify with: sha256sum -c SHA256SUMS)[/dim]")
+        console.print(f"\n[dim]Evidence saved: {escape(str(case_dir))} (verify with: sha256sum -c SHA256SUMS)[/dim]")
 
     if graph_path is not None:
         from sherlockml.output.graph_builder import export_graph
 
         written = export_graph(results, graph_path)
         if written != graph_path:
-            console.print(f"[yellow]Graphviz 'dot' not available; wrote DOT source instead: {written}[/yellow]")
+            console.print(f"[yellow]Graphviz 'dot' not available; wrote DOT source instead: {escape(str(written))}[/yellow]")
         else:
-            console.print(f"[dim]Saved graph: {written}[/dim]")
+            console.print(f"[dim]Saved graph: {escape(str(written))}[/dim]")
 
     # Raw page bodies were retained for verification and evidence; drop
     # them before export unless the config explicitly asks for them.
@@ -467,14 +469,14 @@ async def search(
             report = reporter.generate_report(results, verification=verification_results)
             json_path = output.with_suffix('.json')
             reporter.save(report, json_path)
-            console.print(f"\n[dim]Saved JSON: {json_path}[/dim]")
+            console.print(f"\n[dim]Saved JSON: {escape(str(json_path))}[/dim]")
         
         if output_format in ('md', 'both'):
             writer = MarkdownWriter()
             markdown = writer.generate_writeup(results)
             md_path = output.with_suffix('.md')
             writer.save(markdown, md_path)
-            console.print(f"[dim]Saved Markdown: {md_path}[/dim]")
+            console.print(f"[dim]Saved Markdown: {escape(str(md_path))}[/dim]")
 
 
 @main.command('generate-variants')
@@ -516,15 +518,15 @@ def generate_variants(
         max_variants=max,
     )
     
-    console.print(f"Generated [green]{len(variants)}[/green] variants for '{base_username}'")
+    console.print(f"Generated [green]{len(variants)}[/green] variants for '{escape(base_username)}'")
     console.print()
     
     if output:
         output.write_text('\n'.join(variants))
-        console.print(f"[dim]Saved to: {output}[/dim]")
+        console.print(f"[dim]Saved to: {escape(str(output))}[/dim]")
     else:
         for variant in variants[:50]:
-            console.print(f"  {variant}")
+            console.print(f"  {escape(variant)}")
         
         if len(variants) > 50:
             console.print(f"  [dim]... and {len(variants) - 50} more[/dim]")
@@ -547,7 +549,7 @@ def rl_train(ctx: click.Context, dataset: Path, epochs: int) -> None:
     
     config: Config = ctx.obj['config']
     
-    console.print(f"Training RL model on {dataset}")
+    console.print(f"Training RL model on {escape(str(dataset))}")
     console.print(f"Epochs: {epochs}")
     
     with RLController(config.ml.rl_weights_path) as rl:
@@ -570,7 +572,7 @@ def rl_train(ctx: click.Context, dataset: Path, epochs: int) -> None:
         table.add_column("Score", justify="right")
         
         for platform, score in sorted_weights[:10]:
-            table.add_row(platform, f"{score:.3f}")
+            table.add_row(escape(platform), f"{score:.3f}")
         
         console.print(table)
 
@@ -599,7 +601,7 @@ def rag_query(ctx: click.Context, query: str, top_k: int, threshold: float) -> N
         console.print("[yellow]Vectorstore is empty. Run searches to populate.[/yellow]")
         return
     
-    console.print(f"Querying: [green]{query}[/green]")
+    console.print(f"Querying: [green]{escape(query)}[/green]")
     console.print()
     
     results = rag.query(query, top_k=top_k, threshold=threshold)
@@ -610,9 +612,9 @@ def rag_query(ctx: click.Context, query: str, top_k: int, threshold: float) -> N
     
     for i, result in enumerate(results, 1):
         console.print(f"[bold]{i}. Score: {result.score:.3f}[/bold]")
-        console.print(f"   {result.content[:200]}...")
+        console.print(f"   {escape(result.content[:200])}...")
         if result.metadata:
-            console.print(f"   [dim]{result.metadata}[/dim]")
+            console.print(f"   [dim]{escape(str(result.metadata))}[/dim]")
         console.print()
 
 
@@ -651,7 +653,7 @@ async def scan_github(
     
     scanner = GitHubScanner(auth_token=github_config.auth_token)
     
-    console.print(f"Scanning GitHub user: [green]{username}[/green]")
+    console.print(f"Scanning GitHub user: [green]{escape(username)}[/green]")
     
     async with create_session(config, timeout=60) as session:
         result = await scanner.scan_user(
@@ -673,18 +675,18 @@ async def scan_github(
         console.print()
         console.print("[bold]Emails:[/bold]")
         for email in result.emails_found[:10]:
-            console.print(f"  📧 {email}")
+            console.print(f"  📧 {escape(email)}")
     
     if result.flags_found:
         console.print()
         console.print("[bold red]🚩 FLAGS:[/bold red]")
         for flag in result.flags_found:
-            console.print(f"  {flag}")
+            console.print(f"  {escape(flag)}")
     
     if output:
         import json
         output.write_text(json.dumps(result.to_dict(), indent=2))
-        console.print(f"\n[dim]Saved to: {output}[/dim]")
+        console.print(f"\n[dim]Saved to: {escape(str(output))}[/dim]")
 
 
 @main.command('wayback')
@@ -744,9 +746,9 @@ async def wayback(
     platform_list = platforms.split(',') if platforms else None
 
     console.print(f"[bold blue]SherlockML Wayback[/bold blue] - Mode: [green]{mode}[/green]")
-    console.print(f"Target: [cyan]{target}[/cyan]")
+    console.print(f"Target: [cyan]{escape(target)}[/cyan]")
     if from_date or to_date:
-        console.print(f"Date range: {from_date or '...'} to {to_date or '...'}")
+        console.print(f"Date range: {escape(from_date or '...')} to {escape(to_date or '...')}")
     console.print()
 
     # CDX wildcard queries can be slow; keep aiohttp's default 5 min budget
@@ -772,7 +774,7 @@ async def wayback(
 
             if output:
                 output.write_text(json.dumps(result.to_dict(), indent=2))
-                console.print(f"\n[dim]Saved to: {output}[/dim]")
+                console.print(f"\n[dim]Saved to: {escape(str(output))}[/dim]")
 
         elif mode == 'profile':
             with Progress(
@@ -781,7 +783,7 @@ async def wayback(
                 console=console,
             ) as progress:
                 task = progress.add_task(
-                    f"Scanning archived profiles for '{target}'...", total=None
+                    f"Scanning archived profiles for '{escape(target)}'...", total=None
                 )
                 results = await wb.scan_profile_history(
                     target, session,
@@ -807,12 +809,12 @@ async def wayback(
                 console.print()
                 console.print("[bold red]FLAGS FOUND:[/bold red]")
                 for flag in all_flags:
-                    console.print(f"  {flag}")
+                    console.print(f"  {escape(flag)}")
 
             if output:
                 data = [r.to_dict() for r in results]
                 output.write_text(json.dumps(data, indent=2))
-                console.print(f"\n[dim]Saved to: {output}[/dim]")
+                console.print(f"\n[dim]Saved to: {escape(str(output))}[/dim]")
 
         elif mode == 'domain':
             with Progress(
@@ -821,7 +823,7 @@ async def wayback(
                 console=console,
             ) as progress:
                 task = progress.add_task(
-                    f"Wildcard scanning {target}...", total=None
+                    f"Wildcard scanning {escape(target)}...", total=None
                 )
                 result = await wb.scan_url_wildcard(
                     target, session,
@@ -840,7 +842,7 @@ async def wayback(
 
             console.print(f"[bold]Discovered URLs:[/bold] {len(unique_urls)}")
             for url in unique_urls[:30]:
-                console.print(f"  {url}")
+                console.print(f"  {escape(url)}")
             if len(unique_urls) > 30:
                 console.print(f"  [dim]... and {len(unique_urls) - 30} more[/dim]")
 
@@ -848,17 +850,17 @@ async def wayback(
                 console.print()
                 console.print(f"[bold yellow]Interesting endpoints:[/bold yellow] {len(result.hidden_endpoints)}")
                 for ep in result.hidden_endpoints:
-                    console.print(f"  [yellow]{ep}[/yellow]")
+                    console.print(f"  [yellow]{escape(ep)}[/yellow]")
 
             if result.flags_found:
                 console.print()
                 console.print("[bold red]FLAGS FOUND:[/bold red]")
                 for flag in result.flags_found:
-                    console.print(f"  {flag}")
+                    console.print(f"  {escape(flag)}")
 
             if output:
                 output.write_text(json.dumps(result.to_dict(), indent=2))
-                console.print(f"\n[dim]Saved to: {output}[/dim]")
+                console.print(f"\n[dim]Saved to: {escape(str(output))}[/dim]")
 
 
 def _display_wayback_result(result: "WaybackResult", show_diffs: bool = False) -> None:
@@ -867,15 +869,15 @@ def _display_wayback_result(result: "WaybackResult", show_diffs: bool = False) -
 
     date_range = result.date_range
 
-    console.print(f"[bold cyan]{result.original_url}[/bold cyan]")
+    console.print(f"[bold cyan]{escape(result.original_url)}[/bold cyan]")
     console.print(f"  Snapshots: {result.snapshot_count}")
     if date_range:
-        console.print(f"  Date range: {date_range[0]} - {date_range[1]}")
+        console.print(f"  Date range: {escape(date_range[0])} - {escape(date_range[1])}")
 
     if result.hidden_endpoints:
         console.print(f"  [yellow]Hidden endpoints: {len(result.hidden_endpoints)}[/yellow]")
         for ep in result.hidden_endpoints[:10]:
-            console.print(f"    {ep}")
+            console.print(f"    {escape(ep)}")
 
     if result.robots_entries:
         console.print(f"  Robots.txt entries: {len(result.robots_entries)}")
@@ -890,11 +892,11 @@ def _display_wayback_result(result: "WaybackResult", show_diffs: bool = False) -
         console.print()
         console.print(f"  [bold]Changes detected: {len(result.diffs)}[/bold]")
         for d in result.diffs[:5]:
-            console.print(f"    {d.old_timestamp} -> {d.new_timestamp}")
+            console.print(f"    {escape(d.old_timestamp)} -> {escape(d.new_timestamp)}")
             for line in d.added_lines[:5]:
-                console.print(f"      [green]+ {line[:120]}[/green]")
+                console.print(f"      [green]+ {escape(line[:120])}[/green]")
             for line in d.removed_lines[:5]:
-                console.print(f"      [red]- {line[:120]}[/red]")
+                console.print(f"      [red]- {escape(line[:120])}[/red]")
             if len(d.added_lines) > 5 or len(d.removed_lines) > 5:
                 console.print(f"      [dim]... and more changes[/dim]")
 
@@ -902,7 +904,7 @@ def _display_wayback_result(result: "WaybackResult", show_diffs: bool = False) -
         console.print()
         console.print("  [bold red]FLAGS:[/bold red]")
         for flag in result.flags_found:
-            console.print(f"    {flag}")
+            console.print(f"    {escape(flag)}")
 
     console.print()
 
@@ -949,7 +951,6 @@ def exif(
         try:
             report = analyze_image(path, flag_patterns=flag_patterns)
         except OSError as e:
-            from rich.markup import escape
             console.print(f"[red]{escape(f'{path}: {e}')}[/red]")
             continue
         reports.append(report)
@@ -963,7 +964,7 @@ def exif(
 
     if output:
         output.write_text(json.dumps([r.to_dict() for r in reports], indent=2, ensure_ascii=False))
-        console.print(f"[dim]Saved to: {output}[/dim]")
+        console.print(f"[dim]Saved to: {escape(str(output))}[/dim]")
 
 
 def _display_image_report(report: "ImageReport", all_tags: bool) -> None:
@@ -973,8 +974,6 @@ def _display_image_report(report: "ImageReport", all_tags: bool) -> None:
     metadata is attacker-controlled and Rich would otherwise interpret
     ``[...]`` inside it as markup.
     """
-    from rich.markup import escape
-
     console.print(f"[bold cyan]{escape(report.path)}[/bold cyan]")
     kind = report.detected_type or "unknown"
     size = f"{report.width}x{report.height}, " if report.width else ""
@@ -1041,13 +1040,13 @@ def init(force: bool) -> None:
     config_path = Path.home() / '.sherlockml' / 'config.yaml'
     
     if config_path.exists() and not force:
-        console.print(f"[yellow]Config already exists: {config_path}[/yellow]")
+        console.print(f"[yellow]Config already exists: {escape(str(config_path))}[/yellow]")
         console.print("Use --force to overwrite")
         return
     
     create_default_config_file(config_path)
     
-    console.print(f"[green]Created config:[/green] {config_path}")
+    console.print(f"[green]Created config:[/green] {escape(str(config_path))}")
     console.print()
     console.print("Next steps:")
     console.print("  1. Edit the config to add API tokens")
