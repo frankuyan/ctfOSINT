@@ -13,6 +13,8 @@ Strategies and techniques for using SherlockML in CTF competitions.
 | Wayback profile scan | `sherlockml wayback $TARGET --mode profile -s` |
 | Wayback domain scan | `sherlockml wayback $DOMAIN --mode domain -s` |
 | Generate wordlist | `sherlockml generate-variants $TARGET --leet --years 2020-2025` |
+| Image forensics | `sherlockml exif $FILE_OR_DIR -r` |
+| Evidence + pivot graph | `sherlockml search $TARGET --deep --evidence-dir cases/ --graph graph.graphml` |
 
 ---
 
@@ -104,7 +106,14 @@ asyncio.run(check_history())
 
 ### Step 5: Cross-Platform Correlation
 
-Build social graph to find connections:
+`--deep` records which profile led to each discovered username. Export it
+as a graph to see the pivot chain at a glance:
+
+```bash
+sherlockml search johndoe --deep --graph pivots.svg      # or .graphml for Gephi/yEd
+```
+
+For hand-built graphs from your own profile data:
 
 ```python
 from sherlockml.extract.social_parser import SocialMediaParser
@@ -318,9 +327,64 @@ sherlockml rag-query "all email addresses found" --top-k 50
 
 ---
 
+## Image & File Forensics
+
+Images attached to a challenge, or downloaded from a target's profiles,
+are frequent flag carriers. One pass covers the usual checks:
+
+```bash
+sherlockml exif challenge.jpg
+```
+
+| Finding | What to do next |
+|---------|-----------------|
+| `GPS:` line | Open the map link; check `DateTimeOriginal` / GPS time for the "when" |
+| `Extension mismatch` | Rename to the real type and open it |
+| `Appended data ... contains zip at offset N` | `dd if=challenge.jpg of=out.zip bs=1 skip=N`, then unzip |
+| `png:<key>` / `XPComment` / `UserComment` / `xmp` | Read the hidden text; try base64/rot13 if it looks encoded |
+| Unusual name in `PNG chunks:` | Custom chunk: inspect it with `pngcheck -v` or a hex editor |
+| `software=Photoshop`/`GIMP` | The image was edited; compare timestamps, look for layers/thumbnails |
+
+Beyond what `exif` covers, the usual next tools are `binwalk` (carving
+nested files), `zsteg` (PNG/BMP LSB stego), `steghide` (JPEG with a
+passphrase) and `exiftool` (vendor maker notes).
+
+---
+
+## Evidence Handling
+
+For investigations that may need to stand up later (reports, disclosures,
+incident response), capture as you search:
+
+```bash
+sherlockml search johndoe --deep --verify --evidence-dir cases/johndoe -o cases/johndoe/report --format both
+cd cases/johndoe/johndoe_*/ && sha256sum -c SHA256SUMS
+```
+
+- Each run writes a new timestamped folder; nothing is overwritten.
+- `manifest.json` records target, variants, discovery chain, UTC capture
+  time and SHA-256 for every saved page.
+- Hash the image files you analyse too: `sherlockml exif -o` records
+  MD5/SHA-1/SHA-256 for each.
+
+---
+
 ## Anonymization
 
+All target-facing traffic (search, `--verify` page fetches, `wayback`,
+`scan-github`) goes through the configured proxy. Pass `--proxy` per
+command or set it once in config. LLM API calls for `--verify` go
+directly to your LLM provider.
+
 ### Using Tor
+
+```bash
+sherlockml search target --proxy socks5://127.0.0.1:9050
+sherlockml wayback target.com --mode domain --proxy socks5://127.0.0.1:9050
+```
+
+DNS is resolved by the SOCKS5 proxy, so hostnames don't leak to the local
+resolver. `type: tor` and `socks5h://` are accepted as aliases for socks5.
 
 ```yaml
 # config.yaml

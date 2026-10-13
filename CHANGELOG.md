@@ -8,6 +8,28 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Added
 
+- **Evidence capture (`search --evidence-dir DIR`).** Each run writes a new
+  timestamped case folder holding every found profile (captured HTML, or the
+  observed API data), `manifest.json` (target, variants, discovery chain,
+  UTC capture time, SHA-256 per item, whether a proxy was used) and a
+  `SHA256SUMS` file that `sha256sum -c` verifies.
+- **Discovery provenance.** Results carry `checked_at` (UTC), `hop` and
+  `discovered_from` (`platform:username` of the page that linked them), and
+  `SearchResults.discoveries` lists every pivot. Live output shows
+  `(via github:alice)`; the summary and JSON report list discoveries.
+- **Graph export (`search --graph PATH`).** Identity → profile → linked
+  identity graph as GraphML, DOT, or rendered SVG/PNG/PDF (falls back to
+  DOT if Graphviz is missing). Discovered-but-not-found usernames stay in
+  the graph as open leads.
+- **`sherlockml exif` image forensics command.** MD5/SHA-1/SHA-256, magic
+  vs. extension mismatch, EXIF camera/software/timestamps, GPS as decimal
+  degrees with map links, PNG `tEXt`/`zTXt`/`iTXt`, JPEG comments, XMP, XP
+  tags, `UserComment`, data appended after EOI/IEND with embedded file
+  type and offset, custom PNG chunks, and flags anywhere in the file.
+  Pixel data is never decoded; metadata is markup-escaped before printing.
+- **`--proxy` on `wayback` and `scan-github`.**
+- **JSON report now includes `contacts` and `verification`.**
+
 - **Multi-hop cross-platform discovery.** `--deep` now follows discovered
   profiles for N hops (default 2) instead of a single hop. Two new CLI flags:
   - `--max-hops` (default 2): depth bound. `1` = one hop from seeds;
@@ -43,6 +65,15 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Changed
 
+- **Pillow is now a dependency** (used by `exif`).
+- **`sherlockml.ml` imports lazily**, so `RLController` no longer needs
+  chromadb/spaCy installed just to import.
+- **Discovered usernames are processed in sorted order**, making the
+  `--max-discovered` cut reproducible between runs.
+- **`--verify` reuses pages captured during the search** instead of
+  fetching every HTML profile a second time; only API-backed platforms are
+  fetched.
+- **`scan-github` also scans repo and gist descriptions for flags.**
 - **`--variants` and `--no-variants` are now mutually exclusive.** Passing
   both raises a `click.UsageError` instead of silently disabling basic
   variants while applying full expansion.
@@ -54,6 +85,25 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **Flags were reported as `"flag"` instead of `"flag{...}"`.** The default
+  pattern `(flag|ctf|...)\{...\}` has a capture group and `re.findall`
+  returns the group. `search`, `scan-github` and `wayback` now share
+  `sherlockml.flags.find_flags`, which returns the full match and
+  deduplicates.
+- **Proxy was bypassed outside the main search.** `--verify` page fetches,
+  `wayback` and `scan-github` used bare `aiohttp` sessions, so running
+  behind Tor still exposed the investigator's IP to targets. All
+  target-facing requests now go through `sherlockml.net.create_session`.
+  `tor` and `socks5h` proxy types no longer crash.
+- **`--verify` results were dropped from the saved JSON**, and harvested
+  contacts never reached the JSON or Markdown report.
+- **`generated_at` was malformed** (`...+00:00Z`).
+- **`JSONReporter(include_raw=...)` was ignored**; internal `_`-prefixed
+  metadata is now dropped unless requested.
+- **Graphviz export produced invalid DOT** for names containing a quote
+  (quotes were escaped before backslashes; labels weren't escaped).
+- **Markdown writeup** hard-coded `v1.0.0` and used deprecated
+  `datetime.utcnow()`.
 - **`--deep` was silently broken.** The orchestrator used
   `asyncio.as_completed(tasks)`, which captures its input as a set at call
   time — tasks appended to `tasks` mid-iteration during discovery were

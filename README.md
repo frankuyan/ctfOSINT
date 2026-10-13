@@ -11,6 +11,10 @@
 - 🌐 **Active Search**: Aggressive default variant generation (reversed parts, initial forms, digit suffixes) ranked by Jaro-Winkler similarity, plus `--variants` for full expansion (leet, prefixes, suffixes)
 - 🕸️ **Cross-Platform Discovery** (`--deep`): Multi-hop traversal across ~28 platform URL patterns + bare `@handle` mentions in bios. Tunable depth via `--max-hops` and `--max-discovered`
 - 📇 **Contact Harvesting**: Non-role email addresses are auto-extracted from found profile pages and surfaced in the report
+- 🧾 **Evidence Capture** (`--evidence-dir`): Saves every found profile with a UTC capture time and SHA-256 manifest (`sha256sum -c SHA256SUMS` verifies it); each run gets its own case folder
+- 🧭 **Pivot Provenance + Graphs** (`--graph`): Records which profile led to each discovered username; exports GraphML/DOT/SVG
+- 🖼️ **Image Forensics** (`exif`): Hashes, real type vs. extension, EXIF/GPS with map links, hidden PNG/JPEG/XMP text, data appended after end-of-image, flags
+- 🧅 **Proxy Everywhere**: `--proxy`/Tor applies to search, verification fetches, `wayback` and `scan-github`
 - 🌍 **International Coverage**: Chinese, Russian, Japanese, Korean, and European platforms
 - 🛡️ **Advanced False Positive Detection**: Soft 404s, empty pages, login walls, redirect detection, and multilingual "not found" patterns
 - 🤖 **LLM Profile Verification**: Use OpenAI, Anthropic, Gemini, or local models to verify if found accounts are real or empty
@@ -19,7 +23,7 @@
 - 🔗 **Social Graphing**: Build relationship networks with NetworkX
 - 📊 **Rich Output**: JSON reports, Graphviz diagrams, Markdown writeups
 - 🐳 **Docker Ready**: Multi-stage build with Tor support
-- ✅ **Well-Tested**: 147 tests covering variant generation, URL/handle/email extraction, and platform pattern regressions
+- ✅ **Well-Tested**: 217 tests covering variant generation, URL/handle/email extraction, flag capture, proxy routing, evidence manifests, image forensics, and platform pattern regressions
 
 ## Quick Start
 
@@ -39,6 +43,13 @@ sherlockml search john_doe --deep --max-hops 2
 
 # Search and verify profiles with LLM
 sherlockml search john_doe --verify --llm-key sk-...
+
+# Forensic capture: save pages + SHA-256 manifest, export the pivot graph
+sherlockml search john_doe --deep --evidence-dir cases/ --graph pivots.graphml
+
+# Image forensics: EXIF/GPS, hidden text, appended data, flags
+sherlockml exif photo.jpg
+sherlockml exif ./downloads -r -o images.json
 
 # Generate username variants
 sherlockml generate-variants john_doe --leet --years 2020-2025
@@ -80,6 +91,7 @@ docker run -v ~/.sherlockml:/root/.sherlockml sherlockml search targetuser
 | `generate-variants <username>` | Generate username permutations |
 | `scan-github <username>` | Deep GitHub enumeration |
 | `wayback <target>` | Query Wayback Machine for historical data |
+| `exif <paths...>` | Image forensics: hashes, EXIF/GPS, hidden text, appended data |
 | `rag-query <query>` | Semantic search indexed data |
 | `rl-train --dataset <file>` | Train platform prioritization |
 | `init` | Initialize configuration |
@@ -97,6 +109,9 @@ sherlockml search john_doe \
   --max-hops 2 \           # Discovery depth (default 2; only with --deep)
   --max-discovered 15 \    # Total discovered username cap (only with --deep)
   --rate-limit 10 \        # Requests per second
+  --proxy socks5://127.0.0.1:9050 \  # Tor / SOCKS5 / HTTP proxy
+  --evidence-dir cases/ \  # Save pages + SHA-256 manifest
+  --graph pivots.graphml \ # Discovery graph (.graphml/.dot/.svg/.png/.pdf)
   --verify                 # LLM verification of found profiles
 ```
 
@@ -151,12 +166,17 @@ sherlockml/
 │   └── ner_extractor.py # Entity extraction
 ├── extract/        # Data extractors
 │   ├── github_scanner.py
+│   ├── image_forensics.py
 │   ├── wayback.py
 │   └── social_parser.py
 ├── output/         # Reporters
 │   ├── json_reporter.py
+│   ├── evidence.py       # Case folder + SHA-256 manifest
+│   ├── graph_builder.py  # Discovery provenance graph
 │   ├── graphviz_export.py
 │   └── markdown_writer.py
+├── flags.py        # Shared flag matching
+├── net.py          # Proxy-aware HTTP sessions
 └── platforms/      # Built-in platforms (95)
 ```
 
@@ -167,6 +187,7 @@ sherlockml/
 - **Writeup Generation**: Auto-generate Markdown CTF writeups
 - **Team Sharing**: Export flags to `flags.json`
 - **Time Travel**: Full Wayback Machine CLI with URL, profile, and domain scan modes
+- **Image Stego Triage**: `exif` finds flags in EXIF/XMP/PNG text chunks and data appended after the image
 
 ## Development
 
