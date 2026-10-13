@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
 
+from sherlockml.flags import compile_flag_patterns, find_flags
+
 if TYPE_CHECKING:
     import aiohttp
 
@@ -269,9 +271,7 @@ class WaybackIntegration:
         # Also scan robots/sitemap for flags
         if compiled_flags:
             for text in result.robots_entries + result.sitemap_urls:
-                for pattern in compiled_flags:
-                    matches = pattern.findall(text)
-                    result.flags_found.extend(matches)
+                self._add_flags(result, text, compiled_flags)
 
         return result
 
@@ -394,9 +394,7 @@ class WaybackIntegration:
                     snapshot, session
                 )
                 if content:
-                    for pattern in compiled_flags:
-                        matches = pattern.findall(content)
-                        result.flags_found.extend(matches)
+                    self._add_flags(result, content, compiled_flags)
 
                     result.historical_content.append({
                         "url": snapshot.original_url,
@@ -533,15 +531,18 @@ class WaybackIntegration:
         patterns: list[str] | None,
     ) -> list[re.Pattern[str]]:
         """Compile flag regex patterns, with defaults for common CTF formats."""
-        if patterns:
-            return [re.compile(p, re.IGNORECASE) for p in patterns]
-        # Default CTF flag patterns
-        return [
-            re.compile(
-                r'(flag|ctf|glug|hxp|picoCTF|HTB)\{[^}]+\}', re.IGNORECASE
-            ),
-            re.compile(r'FLAG\{[^}]+\}'),
-        ]
+        return compile_flag_patterns(patterns)
+
+    @staticmethod
+    def _add_flags(
+        result: WaybackResult,
+        text: str,
+        compiled_flags: list[re.Pattern[str]],
+    ) -> None:
+        """Append full flag matches in ``text`` to ``result``, skipping dupes."""
+        for flag in find_flags(text, compiled_flags):
+            if flag not in result.flags_found:
+                result.flags_found.append(flag)
 
     async def _fetch_snapshot_content(
         self,
@@ -590,11 +591,7 @@ class WaybackIntegration:
 
             if scan_content:
                 # Scan for flags
-                for pattern in compiled_flags:
-                    matches = pattern.findall(content)
-                    for m in matches:
-                        if m not in result.flags_found:
-                            result.flags_found.append(m)
+                self._add_flags(result, content, compiled_flags)
 
                 # Store excerpt
                 plain = re.sub(r'<[^>]+>', ' ', content)
@@ -615,11 +612,7 @@ class WaybackIntegration:
 
                     # Scan diff lines for flags too
                     for line in diff.added_lines + diff.removed_lines:
-                        for pattern in compiled_flags:
-                            matches = pattern.findall(line)
-                            for m in matches:
-                                if m not in result.flags_found:
-                                    result.flags_found.append(m)
+                        self._add_flags(result, line, compiled_flags)
 
             prev_content = content
             prev_ts = snapshot.timestamp

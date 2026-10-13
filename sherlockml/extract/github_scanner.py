@@ -8,6 +8,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
+from sherlockml.flags import find_flags
+
 if TYPE_CHECKING:
     import aiohttp
 
@@ -174,16 +176,21 @@ class GitHubScanner:
                 if commit.author_email:
                     result.emails_found.append(commit.author_email)
                 
-                flags = self.FLAG_REGEX.findall(commit.message)
-                result.flags_found.extend(flags)
+                result.flags_found.extend(find_flags(commit.message, [self.FLAG_REGEX]))
         
         # Get gists
         if gists:
             result.gists = await self._get_gists(username, session)
         
-        # Deduplicate
-        result.emails_found = list(set(result.emails_found))
-        result.flags_found = list(set(result.flags_found))
+        # Repo and gist descriptions are already fetched; scan them too
+        descriptions = [r.get("description") or "" for r in result.repos]
+        descriptions += [g.description or "" for g in result.gists]
+        for text in descriptions:
+            result.flags_found.extend(find_flags(text, [self.FLAG_REGEX]))
+        
+        # Deduplicate, preserving discovery order
+        result.emails_found = list(dict.fromkeys(result.emails_found))
+        result.flags_found = list(dict.fromkeys(result.flags_found))
         
         return result
     
