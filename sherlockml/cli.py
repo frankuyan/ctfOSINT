@@ -904,6 +904,130 @@ def _display_wayback_result(result: "WaybackResult", show_diffs: bool = False) -
     console.print()
 
 
+@main.command('exif')
+@click.argument('paths', nargs=-1, required=True, type=click.Path(exists=True, path_type=Path))
+@click.option('--recursive', '-r', is_flag=True, help='Recurse into directories')
+@click.option('--all-tags', is_flag=True, help='Print every EXIF tag, not just the highlights')
+@click.option('--output', '-o', type=click.Path(path_type=Path), help='Output file (JSON)')
+@click.pass_context
+def exif(
+    ctx: click.Context,
+    paths: tuple[Path, ...],
+    recursive: bool,
+    all_tags: bool,
+    output: Path | None,
+) -> None:
+    """Image forensics for local files or directories.
+
+    Reports hashes, real file type vs. extension, camera/software,
+    timestamps, GPS (with map links), text hidden in PNG chunks, JPEG
+    comments, XMP and XP tags, data appended after the end of the image,
+    and CTF flags anywhere in the file. Pixel data is never decoded.
+
+    Examples:
+
+        sherlockml exif photo.jpg
+
+        sherlockml exif ./downloads -r -o images.json
+    """
+    import json
+    from sherlockml.extract.image_forensics import analyze_image, iter_image_files
+
+    config: Config = ctx.obj['config']
+    flag_patterns = config.ctf.flag_patterns if config.ctf.auto_detect_format else None
+
+    files = iter_image_files(list(paths), recursive=recursive)
+    if not files:
+        console.print("[yellow]No image files found.[/yellow]")
+        return
+
+    reports = []
+    for path in files:
+        try:
+            report = analyze_image(path, flag_patterns=flag_patterns)
+        except OSError as e:
+            from rich.markup import escape
+            console.print(f"[red]{escape(f'{path}: {e}')}[/red]")
+            continue
+        reports.append(report)
+        _display_image_report(report, all_tags)
+
+    flagged = [r for r in reports if r.findings]
+    console.print(
+        f"[bold]Analyzed {len(reports)} file{'s' if len(reports) != 1 else ''}[/bold], "
+        f"{len(flagged)} with findings"
+    )
+
+    if output:
+        output.write_text(json.dumps([r.to_dict() for r in reports], indent=2, ensure_ascii=False))
+        console.print(f"[dim]Saved to: {output}[/dim]")
+
+
+def _display_image_report(report: "ImageReport", all_tags: bool) -> None:
+    """Print one image's findings.
+
+    Every value read from the file is passed through ``escape`` because
+    metadata is attacker-controlled and Rich would otherwise interpret
+    ``[...]`` inside it as markup.
+    """
+    from rich.markup import escape
+
+    console.print(f"[bold cyan]{escape(report.path)}[/bold cyan]")
+    kind = report.detected_type or "unknown"
+    size = f"{report.width}x{report.height}, " if report.width else ""
+    console.print(f"  Type: {kind} ({size}{report.size_bytes} bytes)")
+    if report.extension_mismatch:
+        console.print(
+            f"  [bold yellow]Extension mismatch:[/bold yellow] {escape(report.extension) or '(none)'} "
+            f"but content is {kind}"
+        )
+    console.print(f"  [dim]SHA-256: {report.sha256}[/dim]")
+    console.print(f"  [dim]MD5: {report.md5}[/dim]")
+
+    if report.camera:
+        console.print("  Camera/software: " + escape(", ".join(f"{k}={v}" for k, v in report.camera.items())))
+    for name, value in report.timestamps.items():
+        console.print(f"  {name}: {escape(value)}")
+
+    if report.gps:
+        gps = report.gps
+        alt = f", alt {gps['altitude_m']} m" if "altitude_m" in gps else ""
+        console.print(f"  [bold green]GPS:[/bold green] {gps['latitude']}, {gps['longitude']}{alt}")
+        console.print(f"    [underline]{gps['google_maps']}[/underline]")
+        if "timestamp_utc" in gps:
+            console.print(f"    GPS time (UTC): {escape(gps['timestamp_utc'])}")
+
+    for name, value in report.text.items():
+        preview = value if len(value) <= 120 else value[:120] + "..."
+        console.print(f"  [magenta]{escape(name)}:[/magenta] {escape(preview)}")
+
+    if report.png_chunks:
+        console.print(f"  [dim]PNG chunks: {escape(' '.join(report.png_chunks))}[/dim]")
+
+    if report.trailing_data:
+        t = report.trailing_data
+        embedded = f", contains {t['embedded_type']} at offset {t['embedded_offset']}" if t["embedded_type"] else ""
+        console.print(
+            f"  [bold yellow]Appended data:[/bold yellow] {t['size_bytes']} bytes "
+            f"after offset {t['offset']}{embedded}"
+        )
+        console.print(f"    [dim]{escape(t['preview'])}[/dim]")
+
+    if all_tags and report.exif:
+        console.print("  [bold]EXIF tags:[/bold]")
+        for name, value in report.exif.items():
+            console.print(f"    {escape(str(name))}: {escape(str(value))}")
+
+    if report.flags_found:
+        console.print("  [bold red]FLAGS:[/bold red]")
+        for flag in report.flags_found:
+            console.print(f"    {escape(flag)}")
+
+    if report.error:
+        console.print(f"  [dim yellow]{escape(report.error)}[/dim yellow]")
+    console.print()
+
+
 @main.command('init')
 @click.option('--force', '-f', is_flag=True, help='Overwrite existing config')
 def init(force: bool) -> None:
