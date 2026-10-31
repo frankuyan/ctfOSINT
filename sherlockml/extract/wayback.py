@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
 
+from sherlockml.enum.platform_base import is_safe_username
 from sherlockml.flags import compile_flag_patterns, find_flags
 
 if TYPE_CHECKING:
@@ -301,6 +302,8 @@ class WaybackIntegration:
         Returns:
             List of WaybackResult for each platform with snapshots
         """
+        if not is_safe_username(username):
+            raise ValueError(f"Unsafe username: {username!r}")
         platform_urls = self._build_profile_urls(username, platforms)
         compiled_flags = self._compile_flag_patterns(flag_patterns)
 

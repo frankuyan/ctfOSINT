@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -120,9 +122,9 @@ class ProxyConfig(BaseModel):
     control_port: int = 9051  # Tor control port
     control_password: str | None = None  # For HashedControlPassword auth
     
-    @field_validator('control_password', mode='before')
+    @field_validator('password', 'control_password', mode='before')
     @classmethod
-    def expand_control_password(cls, v: str | None) -> str | None:
+    def expand_secrets(cls, v: str | None) -> str | None:
         if v is not None:
             return expand_env_vars(v)
         return v
@@ -131,9 +133,11 @@ class ProxyConfig(BaseModel):
     def url(self) -> str:
         auth = ""
         if self.username and self.password:
-            auth = f"{self.username}:{self.password}@"
+            # Percent-encode so credentials containing ':', '@' or '/'
+            # can't change which host the URL points at.
+            auth = f"{quote(self.username, safe='')}:{quote(self.password, safe='')}@"
         # Tor is a SOCKS5 proxy; socks5h is curl's spelling of SOCKS5 with
-        # remote DNS, which aiohttp-socks already does for socks5.
+        # remote DNS, which create_session always requests.
         scheme = "socks5" if self.type in ("tor", "socks5h") else self.type
         return f"{scheme}://{auth}{self.host}:{self.port}"
 
@@ -142,6 +146,10 @@ class OutputConfig(BaseModel):
     """Output configuration."""
     default_format: str = "json"  # json, markdown, graphviz
     include_raw_responses: bool = False
+    # Create reports, evidence and caches owner-only (umask 077); they hold
+    # personal data about the target.  Turn off if a different user (e.g. a
+    # Docker host account with another uid) has to read them.
+    private_files: bool = True
     pretty_print: bool = True
     flags_file: str = "~/.sherlockml/flags.json"
     results_dir: str = "~/.sherlockml/results"
@@ -228,6 +236,15 @@ class Config(BaseModel):
         return self.platforms.get(name, PlatformConfig())
 
 
+def _open_private(path: Path) -> Any:
+    """Open ``path`` for writing with mode 0600, tightening an existing file."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    if hasattr(os, "fchmod"):  # POSIX only
+        with contextlib.suppress(OSError):
+            os.fchmod(fd, 0o600)
+    return os.fdopen(fd, "w")
+
+
 def load_config(config_path: Path | str | None = None) -> Config:
     """Load configuration from YAML file.
     
@@ -276,7 +293,8 @@ def save_config(config: Config, config_path: Path | str | None = None) -> None:
     # Ensure directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with open(config_path, 'w') as f:
+    # model_dump holds expanded secrets (tokens, API keys): owner-only file
+    with _open_private(config_path) as f:
         yaml.dump(config.model_dump(exclude_none=True), f, default_flow_style=False)
 
 
@@ -368,6 +386,8 @@ ctf:
 """
     
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(default_content)
+    # Users paste API tokens into this file: keep it owner-only
+    with _open_private(config_path) as f:
+        f.write(default_content)
     
     return config_path

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -15,6 +17,7 @@ from rich.table import Table
 
 from sherlockml import __version__
 from sherlockml.config import Config, load_config, create_default_config_file
+from sherlockml.enum.platform_base import is_safe_username
 from sherlockml.net import apply_proxy_option, create_session
 from sherlockml.tor import identity_rotation, rotation_enabled
 
@@ -33,6 +36,21 @@ def _announce_rotation(config: Config) -> None:
             f"[dim]Tor identity rotation: now and every {interval}s via control port "
             f"{escape(config.proxy.host)}:{config.proxy.control_port}[/dim]"
         )
+
+
+def _read_wordlist(path: Path) -> list[str]:
+    """Usernames from a wordlist: one per line, blank lines and # comments skipped."""
+    names = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        name = line.strip()
+        if name and not name.startswith("#"):
+            names.append(name)
+    return names
+
+
+def _safe_filename(value: str) -> str:
+    """Make a username usable as a file name component."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._") or "target"
 
 
 def async_command(f):
@@ -71,6 +89,11 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
         console.print(f"[red]Error loading config: {escape(str(e))}[/red]")
         ctx.obj['config'] = Config()
 
+    if ctx.obj['config'].output.private_files:
+        # Reports, evidence and caches hold personal data about the target
+        # (and the config holds API keys): create them owner-only.
+        os.umask(0o077)
+
 
 @main.command()
 @click.argument('username')
@@ -87,7 +110,8 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.option('--max-hops', type=int, default=2, show_default=True, help='Discovery depth (only meaningful with --deep). 1 = one hop from seeds; 2 = follow links of discovered profiles too')
 @click.option('--max-discovered', type=int, default=15, show_default=True, help='Maximum total discovered usernames across all hops (only meaningful with --deep)')
 @click.option('--verify', is_flag=True, help='Use LLM to verify found profiles are real')
-@click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config)')
+@click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config). Prefer the SHERLOCKML_LLM_KEY env var: '
+              'command-line values are visible to other local users in the process list')
 @click.option('--evidence-dir', type=click.Path(file_okay=False, path_type=Path), help='Save each found profile plus a SHA-256 manifest into a timestamped case folder here')
 @click.option('--graph', 'graph_path', type=click.Path(dir_okay=False, path_type=Path), help='Export the discovery graph (.graphml, .dot, or .svg/.png/.pdf via Graphviz)')
 @click.pass_context
@@ -133,6 +157,13 @@ async def search(
     if variants and no_variants:
         raise click.UsageError("--variants and --no-variants are mutually exclusive")
 
+    if not is_safe_username(username):
+        raise click.BadParameter(
+            "contains characters that can't appear in a profile URL "
+            "(/ \\ ? # % & = : @ < > quotes, spaces)",
+            param_hint="USERNAME",
+        )
+
     config: Config = ctx.obj['config']
 
     # Override config with CLI options
@@ -153,7 +184,7 @@ async def search(
         usernames.extend(generator.generate_basic(username))
 
     if wordlist:
-        usernames.extend(wordlist.read_text().strip().split('\n'))
+        usernames.extend(_read_wordlist(wordlist))
 
     if variants:
         generated = generator.generate(username, leet=True, include_common=True)
@@ -474,19 +505,25 @@ async def search(
         from sherlockml.output.json_reporter import JSONReporter
         from sherlockml.output.markdown_writer import MarkdownWriter
 
-        output = output or Path(f"sherlockml_{username}")
+        if output is None:
+            # Append rather than with_suffix(): a dotted username would
+            # otherwise lose its tail (sherlockml_john.doe -> sherlockml_john.json)
+            base = f"sherlockml_{_safe_filename(username)}"
+            json_out, md_out = Path(base + ".json"), Path(base + ".md")
+        else:
+            json_out, md_out = output.with_suffix('.json'), output.with_suffix('.md')
         
         if output_format in ('json', 'both'):
             reporter = JSONReporter(include_raw=config.output.include_raw_responses)
             report = reporter.generate_report(results, verification=verification_results)
-            json_path = output.with_suffix('.json')
+            json_path = json_out
             reporter.save(report, json_path)
             console.print(f"\n[dim]Saved JSON: {escape(str(json_path))}[/dim]")
         
         if output_format in ('md', 'both'):
             writer = MarkdownWriter()
             markdown = writer.generate_writeup(results)
-            md_path = output.with_suffix('.md')
+            md_path = md_out
             writer.save(markdown, md_path)
             console.print(f"[dim]Saved Markdown: {escape(str(md_path))}[/dim]")
 
@@ -657,7 +694,10 @@ async def scan_github(
         sherlockml scan-github targetuser --commits --depth 20
     """
     from sherlockml.extract.github_scanner import GitHubScanner
-    
+
+    if not is_safe_username(username):
+        raise click.BadParameter("not a valid GitHub username", param_hint="USERNAME")
+
     config: Config = ctx.obj['config']
     if proxy:
         apply_proxy_option(config, proxy)
@@ -750,6 +790,11 @@ async def wayback(
     """
     import json
     from sherlockml.extract.wayback import WaybackIntegration
+
+    if mode == 'profile' and not is_safe_username(target):
+        raise click.BadParameter(
+            "profile mode needs a plain username", param_hint="TARGET",
+        )
 
     config = ctx.obj['config']
     if proxy:

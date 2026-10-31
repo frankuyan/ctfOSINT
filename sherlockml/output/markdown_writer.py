@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
+import re
+from urllib.parse import quote, urlsplit
+
 from jinja2 import Environment, BaseLoader
 
 from sherlockml import __version__
@@ -14,8 +17,43 @@ if TYPE_CHECKING:
     from sherlockml.enum.orchestrator import SearchResults
 
 
+# Most values in a writeup (page titles, bios, discovered usernames) come
+# from pages the target controls.  Unescaped, ``![x](https://evil/p.png)``
+# or ``<img src=...>`` would load from the target's server when the report
+# is previewed, revealing the investigator's IP, and newlines or ``|`` could
+# forge sections or table rows.
+_MD_SPECIAL = re.compile(r"([\\`*_{}\[\]()<>#+!|~&])")
+_MAX_FIELD_CHARS = 300
+
+
+def md_text(value: Any) -> str:
+    """Escape untrusted text for inline Markdown (one line, no HTML)."""
+    text = " ".join(str(value).split())
+    if len(text) > _MAX_FIELD_CHARS:
+        text = text[:_MAX_FIELD_CHARS] + "..."
+    return _MD_SPECIAL.sub(r"\\\1", text)
+
+
+def md_code(value: Any) -> str:
+    """Render untrusted text as an inline code span that can't be broken out of."""
+    text = " ".join(str(value).split())
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") or longest else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
+def md_url(value: Any) -> str:
+    """Return an http(s) URL safe inside ``[text](...)``, or ``#``."""
+    url = str(value or "")
+    if urlsplit(url).scheme.lower() not in ("http", "https"):
+        return "#"
+    # Encode whitespace, parentheses, angle brackets and quotes
+    return quote(url, safe=":/?#[]@!$&*+,;=%~-._'")
+
+
 # Default writeup template
-DEFAULT_TEMPLATE = """# OSINT Investigation: {{ target_username }}
+DEFAULT_TEMPLATE = """# OSINT Investigation: {{ target_username | md }}
 
 **Generated:** {{ generated_at }}  
 **Duration:** {{ elapsed_time }}s  
@@ -33,7 +71,7 @@ DEFAULT_TEMPLATE = """# OSINT Investigation: {{ target_username }}
 ## 🚩 Flags Found
 
 {% for flag in flags %}
-- `{{ flag }}`
+- {{ flag | code }}
 {% endfor %}
 {% endif %}
 
@@ -41,7 +79,7 @@ DEFAULT_TEMPLATE = """# OSINT Investigation: {{ target_username }}
 ## Contacts
 
 {% for email in contacts %}
-- `{{ email }}`
+- {{ email | code }}
 {% endfor %}
 {% endif %}
 
@@ -50,17 +88,17 @@ DEFAULT_TEMPLATE = """# OSINT Investigation: {{ target_username }}
 | Platform | Username | URL | Confidence |
 |----------|----------|-----|------------|
 {% for result in top_results %}
-| {{ result.platform }} | {{ result.username }} | [Link]({{ result.url }}) | {{ result.confidence }}% |
+| {{ result.platform | md }} | {{ result.username | md }} | [Link]({{ result.url | url }}) | {{ result.confidence }}% |
 {% endfor %}
 
 {% if metadata_highlights %}
 ## Notable Metadata
 
 {% for item in metadata_highlights %}
-### {{ item.platform }} - {{ item.username }}
+### {{ item.platform | md }} - {{ item.username | md }}
 
 {% for key, value in item.fields.items() %}
-- **{{ key }}:** {{ value }}
+- **{{ key | md }}:** {{ value | md }}
 {% endfor %}
 
 {% endfor %}
@@ -70,7 +108,7 @@ DEFAULT_TEMPLATE = """# OSINT Investigation: {{ target_username }}
 ## Username Variants Searched
 
 {% for variant in variants_searched %}
-- `{{ variant }}`
+- {{ variant | code }}
 {% endfor %}
 {% endif %}
 
@@ -104,6 +142,9 @@ class MarkdownWriter:
             template_path: Path to template file
         """
         self.env = Environment(loader=BaseLoader())
+        # Filters for custom templates too: md (inline text), code (inline
+        # code span) and url (link target)
+        self.env.filters.update(md=md_text, code=md_code, url=md_url)
         
         if template_path:
             template_path = Path(template_path).expanduser()

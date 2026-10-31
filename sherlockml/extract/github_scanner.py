@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
+from sherlockml.enum.platform_base import is_safe_username
 from sherlockml.flags import compile_flag_patterns, find_flags
 
 if TYPE_CHECKING:
@@ -165,6 +166,10 @@ class GitHubScanner:
         Returns:
             GitHubResult with all findings
         """
+        if not is_safe_username(username):
+            # e.g. ".." would turn /users/{username}/repos into /repos
+            raise ValueError(f"Unsafe GitHub username: {username!r}")
+
         result = GitHubResult(
             username=username,
             profile_url=f"https://github.com/{username}",
