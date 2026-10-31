@@ -33,10 +33,13 @@ services:
       - ./docker/config.default.yaml:/config/config.yaml:ro
       - ./results:/app/results
     
-    # Network capabilities for Tor
-    cap_add:
-      - NET_ADMIN
-    
+    # No extra capabilities: Tor runs in its own container and is reached
+    # over sherlockml_net as a SOCKS proxy.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
     networks:
       - sherlockml_net
     
@@ -58,9 +61,13 @@ services:
     environment:
       - LOCATION=US
     
+    # Published on loopback only.  On 0.0.0.0 anyone who can reach this
+    # host could use it as an open Tor proxy, and the control port lets a
+    # client reconfigure Tor.  SherlockML reaches tor:9050 over
+    # sherlockml_net and doesn't need these at all.
     ports:
-      - "9050:9050"   # SOCKS5 proxy
-      - "9051:9051"   # Control port
+      - "127.0.0.1:9050:9050"   # SOCKS5 proxy
+      - "127.0.0.1:9051:9051"   # Control port
     
     networks:
       - sherlockml_net
@@ -79,8 +86,9 @@ services:
     container_name: sherlockml_chromadb
     restart: unless-stopped
     
+    # Loopback only: ChromaDB has no authentication and stores OSINT data
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     
     volumes:
       - chromadb_data:/chroma/chroma
@@ -106,9 +114,10 @@ services:
     container_name: sherlockml_qdrant
     restart: unless-stopped
     
+    # Loopback only: no API key is configured
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     
     volumes:
       - qdrant_data:/qdrant/storage
@@ -136,8 +145,9 @@ services:
     container_name: sherlockml_redis
     restart: unless-stopped
     
+    # Loopback only: Redis has no password here
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     
     volumes:
       - redis_data:/data
