@@ -28,3 +28,14 @@ Thumbs.db
 # SherlockML data
 results/
 *.db
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Investigation output (personal data about targets; keep out of git)
+sherlockml_*.json
+sherlockml_*.md
+cases/
+evidence/

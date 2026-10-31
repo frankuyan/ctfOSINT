@@ -265,7 +265,12 @@ proxy:
 **All target-facing traffic uses this proxy**: search, `--verify` page
 fetches, `wayback` and `scan-github`. `--proxy URL` on any of those
 commands overrides it. `type: tor` and `socks5h` are accepted as aliases for
-`socks5`; SOCKS5 already resolves DNS through the proxy.
+`socks5`. Hostnames are always resolved by the proxy (also for `socks4`), so
+target hostnames never reach your local DNS resolver. Credentials may contain
+any character; in a `--proxy` URL, percent-encode `@`, `:` and `/`.
+
+LLM verification calls (`--verify`) go **directly** to the LLM provider, not
+through this proxy, so a local `base_url` (Ollama) keeps working.
 
 **Identity rotation** needs Tor's control port enabled. In `torrc`, pick one:
 
@@ -293,9 +298,15 @@ output:
   default_format: json         # json, markdown, graphviz
   pretty_print: true           # Format JSON with indentation
   include_raw_responses: false  # Include raw HTTP responses in output (stripped by default to avoid leaking PII)
+  private_files: true          # Create reports, evidence and caches owner-only (umask 077)
   flags_file: ~/.sherlockml/flags.json
   writeup_template: ~/.sherlockml/templates/writeup.md.j2
 ```
+
+`private_files` makes every file the CLI writes readable only by you, since
+reports and evidence hold personal data about the target. Turn it off if
+another account has to read the output, for example a Docker host user whose
+uid differs from the container's `sherlockml` user.
 
 ---
 
@@ -343,6 +354,16 @@ When `--verify` is used, each found profile gets an LLM verdict:
 - **suspicious**: Minimal content, possibly abandoned or placeholder
 
 Results are displayed in a table and included in JSON output under `llm_verdict`, `llm_confidence`, and `llm_reason` metadata fields.
+
+### Privacy
+
+Verification sends the text of each found profile page (up to 8,000
+characters), its URL and the searched username to the configured provider.
+Use a local model (`base_url`) if that data must not leave your machine.
+Page text is wrapped in `<page_content>` tags and the model is told to treat
+it as data, but a page can still try to steer the verdict: treat LLM output
+as a hint, not evidence. API keys are sent in headers (never in URLs) and
+are redacted from error messages.
 
 ---
 

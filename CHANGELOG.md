@@ -6,6 +6,42 @@ by intent (Added / Changed / Fixed) under each release.
 
 ## Unreleased
 
+### Security
+
+- **Usernames are checked before they go into URLs.** Values with
+  `/ \ ? # % & = : @`, quotes, whitespace or control characters (or `.`/`..`)
+  are rejected by `search`, `scan-github` and `wayback --mode profile`, and the
+  orchestrator skips them, so `evil.example#` can't turn
+  `https://{username}.tumblr.com` into a request to another host and `..`
+  can't walk the GitHub API path.
+- **No DNS leaks over SOCKS4.** The proxy connector always asks the proxy to
+  resolve hostnames; python-socks resolves locally for SOCKS4 by default.
+- **Gemini API key moved from the URL query string to the `x-goog-api-key`
+  header**, so it no longer shows up in exception messages, logs or proxy
+  logs. API keys are also redacted from verification errors.
+- **Prompt-injection fencing for `--verify`.** Page text is wrapped in
+  `<page_content>` tags (which the page can't close early) and the model is
+  told to treat it as data.
+- **Markdown writeups escape target-controlled text** (page titles, bios,
+  usernames, flags, URLs). Previously a profile could plant
+  `![](https://attacker/pixel)` or raw HTML that would load from the
+  attacker's server, revealing the investigator's IP, when the report was
+  previewed, or forge table rows and headings.
+- **Owner-only output.** The CLI sets umask 077 (new `output.private_files`,
+  default on) so reports, evidence, graphs and caches aren't readable by other
+  local users; the config file is written 0600.
+- **Plugins are only loaded from a directory and files that other users
+  can't write to**, since they run as code.
+- **Proxy credentials are percent-encoded** in the proxy URL (a password with
+  `@` or `/` could change the proxy host), `--proxy` credentials are decoded,
+  and `proxy.password` supports `${ENV_VAR}`.
+- **Docker Compose publishes Tor (SOCKS and control port), ChromaDB, Qdrant and
+  Redis on 127.0.0.1 only** instead of every interface (an open Tor proxy,
+  a Tor control port anyone could use, and unauthenticated databases holding
+  OSINT data). The app container drops all capabilities (the unused
+  `NET_ADMIN` is gone) and sets `no-new-privileges`; the Ansible role does
+  the same.
+
 ### Added
 
 - **Evidence capture (`search --evidence-dir DIR`).** Each run writes a new
@@ -94,6 +130,17 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **Ansible config was never used**: it was mounted at `/root/.sherlockml`
+  but the image runs as `sherlockml` and reads `/config/config.yaml`.
+- **`get_central_nodes` returned nothing without SciPy** (networkx's
+  `pagerank` needs it and it isn't a dependency); falls back to a
+  pure-Python PageRank.
+- **Default report names for dotted usernames**: `search john.doe -f both`
+  wrote `sherlockml_john.json`; now `sherlockml_john.doe.json`. Default names
+  are also sanitised for the filesystem.
+- **Wordlists**: blank lines, `#` comments, surrounding whitespace and CRLF
+  line endings no longer become usernames.
+- Removed the stray `test_parse.py` scratch script.
 - **Hostile text could crash or spoof terminal output.** Profile bios, LLM
   summaries, archived page diffs, robots.txt entries and commit author emails
   were interpolated into Rich markup, so a value like `[/i]` raised
