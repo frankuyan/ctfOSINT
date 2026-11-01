@@ -276,3 +276,68 @@ class TestCLIInputs:
         assert result.exit_code == 0, result.output
         assert (tmp_path / "sherlockml_john.doe.json").exists()
         assert (tmp_path / "sherlockml_john.doe.md").exists()
+
+
+class TestVerifyPageFetch:
+    async def test_fetches_concurrently_and_bounds_body(self, monkeypatch):
+        import asyncio as aio
+
+        from aiohttp import web
+
+        from sherlockml import cli
+
+        monkeypatch.setattr(cli, "_MAX_PAGE_BYTES", 1000)
+        in_flight = peak = 0
+
+        async def page(request):
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await aio.sleep(0.05)
+            in_flight -= 1
+            if request.path == "/missing":
+                return web.Response(status=404)
+            return web.Response(text="x" * 5000, content_type="text/html")
+
+        app = web.Application()
+        app.router.add_get("/{name}", page)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        try:
+            results = [
+                SearchResult(username="a", platform=f"p{i}", exists=True,
+                             url=f"http://127.0.0.1:{port}/{'missing' if i == 0 else f'u{i}'}")
+                for i in range(6)
+            ]
+            pages = await cli._fetch_profile_pages(Config(), results)
+        finally:
+            await runner.cleanup()
+
+        assert len(pages) == 5  # the 404 is left out
+        assert all(len(body) == 1000 for body in pages.values())
+        assert peak > 1
+
+
+class TestLocalLLM:
+    async def test_local_base_url_needs_no_key(self):
+        from sherlockml.enum.verify import verify_results
+
+        config = LLMConfig(provider="openai-compatible", base_url="http://127.0.0.1:1/v1")
+        results = await verify_results(
+            [{"platform": "p", "url": "u", "username": "a", "raw_html": "<p>x</p>"}], config,
+        )
+        # Connection refused, but no "API key not configured" error up front
+        assert results[0].error
+
+    def test_rl_train_reports_bad_dataset(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_text("{not json")
+        config = Config()
+        config.ml.rl_weights_db = str(tmp_path / "rl.db")
+        with patch("sherlockml.cli.load_config", return_value=config):
+            result = CliRunner().invoke(main, ["rl-train", "-d", str(bad)])
+        assert result.exit_code == 1
+        assert "Cannot train" in result.output

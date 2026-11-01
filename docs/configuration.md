@@ -341,7 +341,7 @@ llm:
 llm:
   enabled: true
   provider: openai-compatible
-  api_key: not-needed
+  # api_key is optional when base_url is set
   model: llama3
   base_url: http://localhost:11434/v1
 ```

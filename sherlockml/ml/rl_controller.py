@@ -216,6 +216,9 @@ class RLController:
         flag_found: bool,
         response_time: float = 0.0,
         context: dict[str, Any] | None = None,
+        *,
+        commit: bool = True,
+        record_history: bool = True,
     ) -> None:
         """Update platform statistics after a search.
         
@@ -224,6 +227,8 @@ class RLController:
             flag_found: Whether a flag was found
             response_time: Request response time
             context: Optional context for training history
+            commit: Commit now (``train`` batches everything into one commit)
+            record_history: Also append a ``training_history`` row
         """
         now = datetime.now(timezone.utc).isoformat()
         
@@ -263,23 +268,24 @@ class RLController:
                 ),
             )
 
-            # Record in training history
-            self.conn.execute(
-                """
-                INSERT INTO training_history (timestamp, platform, flag_found,
-                                              response_time, context)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    now,
-                    platform,
-                    1 if flag_found else 0,
-                    response_time,
-                    json.dumps(context) if context else None,
-                ),
-            )
+            if record_history:
+                self.conn.execute(
+                    """
+                    INSERT INTO training_history (timestamp, platform, flag_found,
+                                                  response_time, context)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        now,
+                        platform,
+                        1 if flag_found else 0,
+                        response_time,
+                        json.dumps(context) if context else None,
+                    ),
+                )
 
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
         except Exception:
             self.conn.rollback()
             raise
@@ -309,27 +315,44 @@ class RLController:
         """
         dataset_path = Path(dataset_path).expanduser()
         
-        with open(dataset_path) as f:
+        with open(dataset_path, encoding="utf-8") as f:
             data = json.load(f)
-        
+        if not isinstance(data, list) or not all(
+            isinstance(e, dict) and isinstance(e.get("platforms", {}), dict) for e in data
+        ):
+            raise ValueError(
+                'dataset must be a JSON list of {"platforms": {"name": true|false}, ...} objects'
+            )
+
         total_updates = 0
-        
-        for epoch in range(epochs):
-            # Shuffle data each epoch
-            random.shuffle(data)
-            
-            for entry in data:
-                platforms = entry.get("platforms", {})
-                context = entry.get("context", {})
-                
-                for platform, flag_found in platforms.items():
-                    self.update(
-                        platform=platform,
-                        flag_found=flag_found,
-                        context=context,
-                    )
-                    total_updates += 1
-        
+
+        # One transaction for the whole run: committing per update costs a
+        # disk sync each and made a default 50-epoch run take minutes.
+        try:
+            for epoch in range(epochs):
+                # Shuffle data each epoch
+                random.shuffle(data)
+
+                for entry in data:
+                    platforms = entry.get("platforms", {})
+                    context = entry.get("context") or {}
+
+                    for platform, flag_found in platforms.items():
+                        self.update(
+                            platform=str(platform),
+                            # Only a JSON true counts; "false" would be truthy
+                            flag_found=flag_found is True,
+                            context=context,
+                            commit=False,
+                            # Each dataset entry is history once, not once per epoch
+                            record_history=epoch == 0,
+                        )
+                        total_updates += 1
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
         return {
             "epochs": epochs,
             "entries": len(data),

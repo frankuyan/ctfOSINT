@@ -130,6 +130,16 @@ by intent (Added / Changed / Fixed) under each release.
 
 ### Fixed
 
+- **`rl-train` was ~200x slower than needed**: every update was its own
+  SQLite commit (a disk sync each). Training now runs in one transaction,
+  logs each dataset entry to `training_history` once instead of once per
+  epoch, only counts JSON `true` as a success (`"false"` was truthy), and
+  reports a malformed dataset as an error instead of a traceback.
+- **`--verify` page fetches** run 5 at a time instead of one by one, read at
+  most 2 MB per page (a hostile server could stream forever), no longer
+  advertise Brotli when it can't be decoded, and survive bogus charsets.
+- **Local LLMs need no API key**: with `llm.base_url` set, `--verify` runs
+  without `api_key` and sends no `Authorization` header.
 - **Ansible config was never used**: it was mounted at `/root/.sherlockml`
   but the image runs as `sherlockml` and reads `/config/config.yaml`.
 - **`get_central_nodes` returned nothing without SciPy** (networkx's

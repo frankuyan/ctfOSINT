@@ -38,6 +38,60 @@ def _announce_rotation(config: Config) -> None:
         )
 
 
+# Profile pages fetched for --verify: at most this much of each body is kept
+_MAX_PAGE_BYTES = 2 * 1024 * 1024
+_PAGE_FETCH_CONCURRENCY = 5
+
+
+async def _fetch_profile_pages(config: Config, results: list[Any]) -> dict[str, str]:
+    """Fetch result URLs concurrently (through the proxy); return url -> page text.
+
+    Failures are printed and left out of the returned mapping.
+    """
+    from sherlockml.enum.platform_base import DEFAULT_USER_AGENT
+
+    # Accept-Encoding is left to aiohttp, which only offers what it can decode
+    headers = {
+        "User-Agent": DEFAULT_USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    semaphore = asyncio.Semaphore(_PAGE_FETCH_CONCURRENCY)
+    pages: dict[str, str] = {}
+
+    async def fetch(session: Any, result: Any) -> None:
+        async with semaphore:
+            try:
+                async with session.get(result.url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status != 200:
+                        console.print(
+                            f"  [dim yellow]Could not fetch {escape(result.platform)} "
+                            f"(HTTP {resp.status})[/dim yellow]"
+                        )
+                        return
+                    # Bounded read: a hostile server could stream forever
+                    raw = await resp.content.read(_MAX_PAGE_BYTES)
+                    try:
+                        pages[result.url] = raw.decode(resp.get_encoding(), errors="replace")
+                    except LookupError:  # bogus charset in Content-Type
+                        pages[result.url] = raw.decode("utf-8", errors="replace")
+            except Exception as e:
+                console.print(
+                    f"  [dim yellow]Could not fetch {escape(result.platform)}: "
+                    f"{escape(str(e) or type(e).__name__)}[/dim yellow]"
+                )
+
+    # Profile pages are target-facing: honour the proxy
+    async with create_session(config, timeout=15) as session:
+        await asyncio.gather(*(fetch(session, r) for r in results))
+    return pages
+
+
 def _read_wordlist(path: Path) -> list[str]:
     """Usernames from a wordlist: one per line, blank lines and # comments skipped."""
     names = []
@@ -262,7 +316,7 @@ async def search(
             config.llm.api_key = llm_key
             config.llm.enabled = True
 
-        if not config.llm.api_key:
+        if not config.llm.api_key and not config.llm.base_url:
             console.print(
                 "[yellow]LLM verification requested but no API key configured.[/yellow]"
             )
@@ -289,50 +343,22 @@ async def search(
 
             # Fetch profile pages for results that used JSON APIs
             if needs_fetch:
-                from sherlockml.enum.platform_base import DEFAULT_USER_AGENT
-
                 console.print()
                 console.print(
                     f"[dim]Fetching {len(needs_fetch)} profile pages for verification...[/dim]"
                 )
-                fetch_headers = {
-                    "User-Agent": DEFAULT_USER_AGENT,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Accept-Encoding": "gzip, deflate, br",
-                    "Connection": "keep-alive",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Sec-Fetch-User": "?1",
-                    "Upgrade-Insecure-Requests": "1",
-                }
-                # Profile pages are target-facing: honour the proxy
-                async with create_session(config, timeout=15) as fetch_session:
-                    for r in needs_fetch:
-                        try:
-                            async with fetch_session.get(
-                                r.url,
-                                headers=fetch_headers,
-                                allow_redirects=True,
-                            ) as resp:
-                                if resp.status == 200:
-                                    body = await resp.text(errors="replace")
-                                    r.metadata["_raw_response"] = body
-                                    to_verify.append({
-                                        "platform": r.platform,
-                                        "url": r.url,
-                                        "username": r.username,
-                                        "raw_html": body,
-                                    })
-                                else:
-                                    console.print(
-                                        f"  [dim yellow]Could not fetch {r.platform} (HTTP {resp.status})[/dim yellow]"
-                                    )
-                        except Exception as e:
-                            console.print(
-                                f"  [dim yellow]Could not fetch {r.platform}: {escape(str(e))}[/dim yellow]"
-                            )
+                fetched = await _fetch_profile_pages(config, needs_fetch)
+                for r in needs_fetch:
+                    body = fetched.get(r.url)
+                    if body is None:
+                        continue
+                    r.metadata["_raw_response"] = body
+                    to_verify.append({
+                        "platform": r.platform,
+                        "url": r.url,
+                        "username": r.username,
+                        "raw_html": body,
+                    })
 
             if to_verify:
                 console.print()
@@ -602,7 +628,10 @@ def rl_train(ctx: click.Context, dataset: Path, epochs: int) -> None:
     console.print(f"Epochs: {epochs}")
     
     with RLController(config.ml.rl_weights_path) as rl:
-        stats = rl.train(dataset, epochs=epochs)
+        try:
+            stats = rl.train(dataset, epochs=epochs)
+        except (ValueError, OSError) as e:  # JSONDecodeError is a ValueError
+            raise click.ClickException(f"Cannot train on {dataset}: {e}") from e
         
         console.print()
         console.print(f"[green]Training complete![/green]")

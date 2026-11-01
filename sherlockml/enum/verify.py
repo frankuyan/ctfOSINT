@@ -152,10 +152,9 @@ async def _call_openai(
     base_url = (config.base_url or "https://api.openai.com/v1").rstrip("/")
     url = f"{base_url}/chat/completions"
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {config.api_key}",
-    }
+    headers = {"Content-Type": "application/json"}
+    if config.api_key:
+        headers["Authorization"] = f"Bearer {config.api_key}"
 
     payload = {
         "model": config.model,
@@ -419,7 +418,8 @@ async def verify_results(
     Returns:
         List of VerificationResult objects
     """
-    if not config.api_key:
+    # A custom base_url (Ollama, vLLM, LM Studio) usually needs no key
+    if not config.api_key and not config.base_url:
         raise ValueError(
             "LLM API key not configured. Set llm.api_key in config "
             "or the appropriate environment variable."
