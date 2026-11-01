@@ -12,6 +12,7 @@ from typing import Any, Callable, TYPE_CHECKING
 
 import aiohttp
 
+from sherlockml.enum.platform_base import is_safe_username
 from sherlockml.flags import compile_flag_patterns, find_flags
 from sherlockml.net import create_session
 from sherlockml.timeutil import utc_timestamp
@@ -292,6 +293,15 @@ class Orchestrator:
         Returns:
             SearchResult for this check
         """
+        if not is_safe_username(username):
+            return SearchResult(
+                username=username,
+                platform=platform.name,
+                exists=False,
+                error="Username contains characters that are unsafe in a URL",
+                checked_at=utc_timestamp(),
+            )
+
         async with self.semaphore:
             platform_config = self.config.get_platform(platform.name)
             rate_limit = platform_config.rate_limit or platform.rate_limit_rps
@@ -487,8 +497,19 @@ class Orchestrator:
         if not usernames:
             return SearchResults(query_username="", total_platforms=0)
 
+        query_username = usernames[0]
+        rejected = [u for u in usernames if not is_safe_username(u)]
+        if rejected:
+            logger.warning(
+                "Skipping %d username(s) with characters unsafe in a URL: %s",
+                len(rejected), ", ".join(repr(u) for u in rejected[:5]),
+            )
+            usernames = [u for u in usernames if is_safe_username(u)]
+        if not usernames:
+            return SearchResults(query_username=query_username, total_platforms=0)
+
         results = SearchResults(
-            query_username=usernames[0],
+            query_username=query_username,
             variants_searched=usernames.copy(),
             total_platforms=len(platforms) * len(usernames),
         )

@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import logging
+import os
+import stat
 import sys
 import threading
 from pathlib import Path
@@ -14,6 +16,24 @@ from sherlockml.enum.platform_base import BasePlatform
 
 if TYPE_CHECKING:
     from sherlockml.config import Config, PlatformConfig
+
+
+def _owner_only_writable(path: Path) -> bool:
+    """Whether only we (or root) can modify ``path``.
+
+    Plugins are executed as code, so a plugin file or directory another
+    local user can write to would let them run code as us.  Always true on
+    platforms without POSIX ownership (Windows).
+    """
+    if not hasattr(os, "getuid"):
+        return True
+    try:
+        st = path.stat()
+    except OSError:
+        return False
+    if st.st_uid not in (os.getuid(), 0):
+        return False
+    return not st.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
 
 
 class PlatformRegistry:
@@ -130,8 +150,22 @@ class PlatformRegistry:
         
         count = 0
         
-        for plugin_path in self.plugins_dir.glob("*.py"):
+        if not _owner_only_writable(self.plugins_dir):
+            logging.warning(
+                "Not loading plugins from %s: the directory is writable by other "
+                "users or owned by someone else (chmod go-w it to enable plugins)",
+                self.plugins_dir,
+            )
+            return 0
+
+        for plugin_path in sorted(self.plugins_dir.glob("*.py")):
             if plugin_path.name.startswith("_"):
+                continue
+            if not _owner_only_writable(plugin_path):
+                logging.warning(
+                    "Skipping plugin %s: writable by other users or owned by someone else",
+                    plugin_path,
+                )
                 continue
             
             try:

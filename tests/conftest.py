@@ -134,3 +134,14 @@ def mock_github_response() -> dict:
         "following": 50,
         "created_at": "2020-01-01T00:00:00Z",
     }
+
+
+@pytest.fixture(autouse=True)
+def _restore_umask():
+    """The CLI sets umask 077 (output.private_files); don't leak it across tests."""
+    import os
+
+    previous = os.umask(0o022)
+    os.umask(previous)
+    yield
+    os.umask(previous)

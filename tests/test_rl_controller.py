@@ -134,3 +134,39 @@ class TestRLController:
             rl.update("github", flag_found=True)
         # Connection should be closed but file should exist
         assert db_path.exists()
+
+
+class TestTrainBatching:
+    def _dataset(self, tmp_path, data):
+        import json
+
+        path = tmp_path / "ds.json"
+        path.write_text(json.dumps(data))
+        return path
+
+    def test_history_recorded_once_per_entry(self, tmp_path):
+        from sherlockml.ml.rl_controller import RLController
+
+        path = self._dataset(tmp_path, [{"platforms": {"github": True, "reddit": False}}])
+        with RLController(tmp_path / "rl.db") as rl:
+            stats = rl.train(path, epochs=5)
+            rows = rl.conn.execute("SELECT COUNT(*) FROM training_history").fetchone()[0]
+        assert stats["total_updates"] == 10
+        assert rows == 2
+
+    def test_only_json_true_counts_as_success(self, tmp_path):
+        from sherlockml.ml.rl_controller import RLController
+
+        path = self._dataset(tmp_path, [{"platforms": {"github": "false"}}])
+        with RLController(tmp_path / "rl.db") as rl:
+            rl.train(path, epochs=1)
+            assert rl.get_stats("github").successes == 0
+
+    def test_rejects_malformed_dataset(self, tmp_path):
+        import pytest
+
+        from sherlockml.ml.rl_controller import RLController
+
+        path = self._dataset(tmp_path, {"platforms": {"github": True}})
+        with RLController(tmp_path / "rl.db") as rl, pytest.raises(ValueError):
+            rl.train(path)

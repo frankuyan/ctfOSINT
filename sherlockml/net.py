@@ -9,7 +9,7 @@ connect directly and expose the investigator's IP address.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import aiohttp
 from aiohttp_socks import ProxyConnector
@@ -37,8 +37,13 @@ def create_session(
     if config.proxy.enabled:
         # With identity rotation, pooled keep-alive connections would stay
         # on the old Tor circuit; open a fresh stream per request instead.
+        # rdns=True makes the proxy resolve hostnames.  python-socks
+        # already does that for SOCKS5 but resolves locally for SOCKS4,
+        # which would leak every target hostname to the local resolver.
         connector = ProxyConnector.from_url(
-            config.proxy.url, force_close=rotation_enabled(config.proxy),
+            config.proxy.url,
+            rdns=True,
+            force_close=rotation_enabled(config.proxy),
         )
     return aiohttp.ClientSession(
         connector=connector,
@@ -57,7 +62,9 @@ def apply_proxy_option(config: Config, proxy: str) -> None:
         config.proxy.host = parsed.hostname
     if parsed.port:
         config.proxy.port = parsed.port
+    # urlparse leaves credentials percent-encoded; ProxyConfig.url
+    # re-encodes them, so store the decoded values.
     if parsed.username:
-        config.proxy.username = parsed.username
+        config.proxy.username = unquote(parsed.username)
     if parsed.password:
-        config.proxy.password = parsed.password
+        config.proxy.password = unquote(parsed.password)

@@ -45,6 +45,29 @@ class SocialGraphResult:
         return len(self.edges)
 
 
+def _pagerank(
+    graph: nx.DiGraph, alpha: float = 0.85, max_iter: int = 100, tol: float = 1e-6,
+) -> dict[Any, float]:
+    """Plain-Python PageRank (power iteration), used when SciPy is missing."""
+    nodes = list(graph.nodes())
+    count = len(nodes)
+    rank = dict.fromkeys(nodes, 1.0 / count)
+    out_degree = {node: graph.out_degree(node) for node in nodes}
+    for _ in range(max_iter):
+        # Rank held by dangling nodes (no out-links) is spread evenly
+        dangling = alpha * sum(rank[v] for v in nodes if out_degree[v] == 0) / count
+        new = dict.fromkeys(nodes, (1.0 - alpha) / count + dangling)
+        for node in nodes:
+            if out_degree[node]:
+                share = alpha * rank[node] / out_degree[node]
+                for succ in graph.successors(node):
+                    new[succ] += share
+        if sum(abs(new[v] - rank[v]) for v in nodes) < count * tol:
+            return new
+        rank = new
+    return rank
+
+
 class SocialMediaParser:
     """Social media profile analysis and graph building.
     
@@ -269,10 +292,13 @@ class SocialMediaParser:
         
         try:
             pagerank = nx.pagerank(self.graph)
-            sorted_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)
-            return sorted_nodes[:n]
+        except ImportError:
+            # networkx's pagerank needs SciPy, which isn't a dependency
+            pagerank = _pagerank(self.graph)
         except Exception:
             return []
+        sorted_nodes = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)
+        return sorted_nodes[:n]
     
     def export_graphml(self, path: str | Any) -> None:
         """Export graph to GraphML format.

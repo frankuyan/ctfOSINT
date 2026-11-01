@@ -5,7 +5,8 @@
   file:
     path: "{{ item }}"
     state: directory
-    mode: '0755'
+    # Results hold personal data about targets: no access for other users
+    mode: '0750'
   loop:
     - "{{ sherlockml_data_dir }}"
     - "{{ ansible_env.HOME }}/.sherlockml"
@@ -39,11 +40,15 @@
     image: "{{ sherlockml_image }}"
     state: started
     restart_policy: unless-stopped
-    capabilities:
-      - NET_ADMIN
+    cap_drop:
+      - ALL
+    security_opts:
+      - no-new-privileges:true
     volumes:
       - "{{ sherlockml_data_dir }}:/data"
-      - "{{ ansible_env.HOME }}/.sherlockml:/root/.sherlockml:ro"
+      # The image runs as 'sherlockml' and reads SHERLOCKML_CONFIG=/config;
+      # mounting at /root/.sherlockml meant this config was never used.
+      - "{{ ansible_env.HOME }}/.sherlockml/config.yaml:/config/config.yaml:ro"
     env:
       GITHUB_TOKEN: "{{ github_token }}"
       TWITTER_BEARER_TOKEN: "{{ twitter_bearer_token }}"

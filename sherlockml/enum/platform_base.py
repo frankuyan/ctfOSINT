@@ -18,6 +18,31 @@ DEFAULT_USER_AGENT = (
 )
 
 
+# Characters that can change what a URL built from "...{username}..." points
+# at: path/query/fragment delimiters, userinfo/port separators, escapes and
+# quotes.  No supported platform allows them in a username.
+_URL_UNSAFE_CHARS = frozenset('/\\?#%&=:@<>"\'`')
+MAX_USERNAME_LENGTH = 100
+
+
+def is_safe_username(username: str) -> bool:
+    """Whether ``username`` can be substituted into a profile URL safely.
+
+    Usernames come from the command line, wordlists and (with ``--deep``)
+    pages the target controls.  Rejecting delimiters means a value such as
+    ``evil.example#`` can't turn ``https://{username}.tumblr.com`` into a
+    request to another host, and ``../`` can't walk an API path.
+    """
+    if not username or len(username) > MAX_USERNAME_LENGTH:
+        return False
+    if username in (".", ".."):
+        return False
+    return not any(
+        c in _URL_UNSAFE_CHARS or c.isspace() or not c.isprintable()
+        for c in username
+    )
+
+
 class PlatformCategory(Enum):
     """Categories of platforms for organization and filtering."""
     SOCIAL = "social"

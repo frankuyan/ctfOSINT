@@ -205,12 +205,40 @@ mypy sherlockml/
 ruff check sherlockml/
 ```
 
+## Privacy & OPSEC
+
+- **Proxy everything target-facing.** With `proxy.enabled` (or `--proxy`),
+  search, `--verify` page fetches, `wayback` and `scan-github` go through the
+  proxy, and DNS is resolved by the proxy too. LLM API calls go directly to
+  the provider.
+- **Output is owner-only.** Reports, evidence, graphs and the config file are
+  created with mode 0600 (`output.private_files`). Report names matching
+  `sherlockml_*` and `cases/`/`evidence/` folders are git-ignored; keep
+  investigation output out of version control.
+- **Writeups are escaped.** Text taken from target pages is escaped in
+  Markdown reports, so a profile can't plant a remote image that would load
+  from the target's server (revealing your IP) when you preview the report.
+- **LLM verification shares page content** with the provider you configure.
+  Use a local model if that is not acceptable. Pass the key with
+  `SHERLOCKML_LLM_KEY`, not `--llm-key`: command-line arguments are visible
+  to other local users.
+- **Usernames are validated** before being placed in URLs: values containing
+  `/ \ ? # % & = : @`, quotes, spaces or control characters are rejected, so
+  input from wordlists or discovered pages can't redirect requests to other
+  hosts or API paths.
+- **Plugins** in `~/.sherlockml/plugins` run as code under your account, so
+  they are only loaded if the directory and file are not writable by other
+  users.
+- **Docker:** Tor, ChromaDB, Qdrant and Redis are published on `127.0.0.1`
+  only; none of them has authentication enabled here.
+
 ## Deployment (Ansible)
 
 ```bash
 cd ansible
-ansible-playbook -i inventory playbook.yml \
-  --extra-vars "github_token=ghp_xxx"
+# Keep tokens in an Ansible Vault file rather than on the command line
+ansible-vault create group_vars/all/vault.yml   # github_token: ghp_...
+ansible-playbook -i inventory playbook.yml --ask-vault-pass
 ```
 
 ## Performance

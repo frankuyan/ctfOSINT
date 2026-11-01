@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -15,6 +17,7 @@ from rich.table import Table
 
 from sherlockml import __version__
 from sherlockml.config import Config, load_config, create_default_config_file
+from sherlockml.enum.platform_base import is_safe_username
 from sherlockml.net import apply_proxy_option, create_session
 from sherlockml.tor import identity_rotation, rotation_enabled
 
@@ -33,6 +36,75 @@ def _announce_rotation(config: Config) -> None:
             f"[dim]Tor identity rotation: now and every {interval}s via control port "
             f"{escape(config.proxy.host)}:{config.proxy.control_port}[/dim]"
         )
+
+
+# Profile pages fetched for --verify: at most this much of each body is kept
+_MAX_PAGE_BYTES = 2 * 1024 * 1024
+_PAGE_FETCH_CONCURRENCY = 5
+
+
+async def _fetch_profile_pages(config: Config, results: list[Any]) -> dict[str, str]:
+    """Fetch result URLs concurrently (through the proxy); return url -> page text.
+
+    Failures are printed and left out of the returned mapping.
+    """
+    from sherlockml.enum.platform_base import DEFAULT_USER_AGENT
+
+    # Accept-Encoding is left to aiohttp, which only offers what it can decode
+    headers = {
+        "User-Agent": DEFAULT_USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    semaphore = asyncio.Semaphore(_PAGE_FETCH_CONCURRENCY)
+    pages: dict[str, str] = {}
+
+    async def fetch(session: Any, result: Any) -> None:
+        async with semaphore:
+            try:
+                async with session.get(result.url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status != 200:
+                        console.print(
+                            f"  [dim yellow]Could not fetch {escape(result.platform)} "
+                            f"(HTTP {resp.status})[/dim yellow]"
+                        )
+                        return
+                    # Bounded read: a hostile server could stream forever
+                    raw = await resp.content.read(_MAX_PAGE_BYTES)
+                    try:
+                        pages[result.url] = raw.decode(resp.get_encoding(), errors="replace")
+                    except LookupError:  # bogus charset in Content-Type
+                        pages[result.url] = raw.decode("utf-8", errors="replace")
+            except Exception as e:
+                console.print(
+                    f"  [dim yellow]Could not fetch {escape(result.platform)}: "
+                    f"{escape(str(e) or type(e).__name__)}[/dim yellow]"
+                )
+
+    # Profile pages are target-facing: honour the proxy
+    async with create_session(config, timeout=15) as session:
+        await asyncio.gather(*(fetch(session, r) for r in results))
+    return pages
+
+
+def _read_wordlist(path: Path) -> list[str]:
+    """Usernames from a wordlist: one per line, blank lines and # comments skipped."""
+    names = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        name = line.strip()
+        if name and not name.startswith("#"):
+            names.append(name)
+    return names
+
+
+def _safe_filename(value: str) -> str:
+    """Make a username usable as a file name component."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._") or "target"
 
 
 def async_command(f):
@@ -71,6 +143,11 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
         console.print(f"[red]Error loading config: {escape(str(e))}[/red]")
         ctx.obj['config'] = Config()
 
+    if ctx.obj['config'].output.private_files:
+        # Reports, evidence and caches hold personal data about the target
+        # (and the config holds API keys): create them owner-only.
+        os.umask(0o077)
+
 
 @main.command()
 @click.argument('username')
@@ -87,7 +164,8 @@ def main(ctx: click.Context, config: Path | None, verbose: bool) -> None:
 @click.option('--max-hops', type=int, default=2, show_default=True, help='Discovery depth (only meaningful with --deep). 1 = one hop from seeds; 2 = follow links of discovered profiles too')
 @click.option('--max-discovered', type=int, default=15, show_default=True, help='Maximum total discovered usernames across all hops (only meaningful with --deep)')
 @click.option('--verify', is_flag=True, help='Use LLM to verify found profiles are real')
-@click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config)')
+@click.option('--llm-key', type=str, envvar='SHERLOCKML_LLM_KEY', help='LLM API key (overrides config). Prefer the SHERLOCKML_LLM_KEY env var: '
+              'command-line values are visible to other local users in the process list')
 @click.option('--evidence-dir', type=click.Path(file_okay=False, path_type=Path), help='Save each found profile plus a SHA-256 manifest into a timestamped case folder here')
 @click.option('--graph', 'graph_path', type=click.Path(dir_okay=False, path_type=Path), help='Export the discovery graph (.graphml, .dot, or .svg/.png/.pdf via Graphviz)')
 @click.pass_context
@@ -133,6 +211,13 @@ async def search(
     if variants and no_variants:
         raise click.UsageError("--variants and --no-variants are mutually exclusive")
 
+    if not is_safe_username(username):
+        raise click.BadParameter(
+            "contains characters that can't appear in a profile URL "
+            "(/ \\ ? # % & = : @ < > quotes, spaces)",
+            param_hint="USERNAME",
+        )
+
     config: Config = ctx.obj['config']
 
     # Override config with CLI options
@@ -153,7 +238,7 @@ async def search(
         usernames.extend(generator.generate_basic(username))
 
     if wordlist:
-        usernames.extend(wordlist.read_text().strip().split('\n'))
+        usernames.extend(_read_wordlist(wordlist))
 
     if variants:
         generated = generator.generate(username, leet=True, include_common=True)
@@ -231,7 +316,7 @@ async def search(
             config.llm.api_key = llm_key
             config.llm.enabled = True
 
-        if not config.llm.api_key:
+        if not config.llm.api_key and not config.llm.base_url:
             console.print(
                 "[yellow]LLM verification requested but no API key configured.[/yellow]"
             )
@@ -258,50 +343,22 @@ async def search(
 
             # Fetch profile pages for results that used JSON APIs
             if needs_fetch:
-                from sherlockml.enum.platform_base import DEFAULT_USER_AGENT
-
                 console.print()
                 console.print(
                     f"[dim]Fetching {len(needs_fetch)} profile pages for verification...[/dim]"
                 )
-                fetch_headers = {
-                    "User-Agent": DEFAULT_USER_AGENT,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Accept-Encoding": "gzip, deflate, br",
-                    "Connection": "keep-alive",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Sec-Fetch-User": "?1",
-                    "Upgrade-Insecure-Requests": "1",
-                }
-                # Profile pages are target-facing: honour the proxy
-                async with create_session(config, timeout=15) as fetch_session:
-                    for r in needs_fetch:
-                        try:
-                            async with fetch_session.get(
-                                r.url,
-                                headers=fetch_headers,
-                                allow_redirects=True,
-                            ) as resp:
-                                if resp.status == 200:
-                                    body = await resp.text(errors="replace")
-                                    r.metadata["_raw_response"] = body
-                                    to_verify.append({
-                                        "platform": r.platform,
-                                        "url": r.url,
-                                        "username": r.username,
-                                        "raw_html": body,
-                                    })
-                                else:
-                                    console.print(
-                                        f"  [dim yellow]Could not fetch {r.platform} (HTTP {resp.status})[/dim yellow]"
-                                    )
-                        except Exception as e:
-                            console.print(
-                                f"  [dim yellow]Could not fetch {r.platform}: {escape(str(e))}[/dim yellow]"
-                            )
+                fetched = await _fetch_profile_pages(config, needs_fetch)
+                for r in needs_fetch:
+                    body = fetched.get(r.url)
+                    if body is None:
+                        continue
+                    r.metadata["_raw_response"] = body
+                    to_verify.append({
+                        "platform": r.platform,
+                        "url": r.url,
+                        "username": r.username,
+                        "raw_html": body,
+                    })
 
             if to_verify:
                 console.print()
@@ -474,19 +531,25 @@ async def search(
         from sherlockml.output.json_reporter import JSONReporter
         from sherlockml.output.markdown_writer import MarkdownWriter
 
-        output = output or Path(f"sherlockml_{username}")
+        if output is None:
+            # Append rather than with_suffix(): a dotted username would
+            # otherwise lose its tail (sherlockml_john.doe -> sherlockml_john.json)
+            base = f"sherlockml_{_safe_filename(username)}"
+            json_out, md_out = Path(base + ".json"), Path(base + ".md")
+        else:
+            json_out, md_out = output.with_suffix('.json'), output.with_suffix('.md')
         
         if output_format in ('json', 'both'):
             reporter = JSONReporter(include_raw=config.output.include_raw_responses)
             report = reporter.generate_report(results, verification=verification_results)
-            json_path = output.with_suffix('.json')
+            json_path = json_out
             reporter.save(report, json_path)
             console.print(f"\n[dim]Saved JSON: {escape(str(json_path))}[/dim]")
         
         if output_format in ('md', 'both'):
             writer = MarkdownWriter()
             markdown = writer.generate_writeup(results)
-            md_path = output.with_suffix('.md')
+            md_path = md_out
             writer.save(markdown, md_path)
             console.print(f"[dim]Saved Markdown: {escape(str(md_path))}[/dim]")
 
@@ -565,7 +628,10 @@ def rl_train(ctx: click.Context, dataset: Path, epochs: int) -> None:
     console.print(f"Epochs: {epochs}")
     
     with RLController(config.ml.rl_weights_path) as rl:
-        stats = rl.train(dataset, epochs=epochs)
+        try:
+            stats = rl.train(dataset, epochs=epochs)
+        except (ValueError, OSError) as e:  # JSONDecodeError is a ValueError
+            raise click.ClickException(f"Cannot train on {dataset}: {e}") from e
         
         console.print()
         console.print(f"[green]Training complete![/green]")
@@ -657,7 +723,10 @@ async def scan_github(
         sherlockml scan-github targetuser --commits --depth 20
     """
     from sherlockml.extract.github_scanner import GitHubScanner
-    
+
+    if not is_safe_username(username):
+        raise click.BadParameter("not a valid GitHub username", param_hint="USERNAME")
+
     config: Config = ctx.obj['config']
     if proxy:
         apply_proxy_option(config, proxy)
@@ -750,6 +819,11 @@ async def wayback(
     """
     import json
     from sherlockml.extract.wayback import WaybackIntegration
+
+    if mode == 'profile' and not is_safe_username(target):
+        raise click.BadParameter(
+            "profile mode needs a plain username", param_hint="TARGET",
+        )
 
     config = ctx.obj['config']
     if proxy:
